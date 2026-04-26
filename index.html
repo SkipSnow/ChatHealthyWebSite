@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Copyright © 2026 Skip Snow. All rights reserved.
+  Copyright © 2026 ChatHealthy.ai LLC. All rights reserved.
   Licensed under the FindCare Evaluation License (FEL-1.0).
 
   Coded by Claude Sonnet 4.6 (Anthropic).
@@ -27,7 +27,7 @@
       --accent:     #f0a500;
       --border:     #d8e2e1;
       --radius:     6px;
-      --max-w:      1160px;
+      --max-w:      100%;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -42,13 +42,45 @@
     body {
       display: flex;
       flex-direction: column;
-      min-height: 100vh;
+      min-height: 100%;
+    }
+
+    /* ── Content area with side panels ────────────── */
+    .content-row {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+    }
+
+    .side-panel {
+      width: 20%;
+      transition: width 0.3s ease;
+      overflow: hidden;
+      height: 100%;
+    }
+    .side-panel.filter-active {
+      overflow: hidden;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .side-panel.expanded {
+      width: 40%;
+    }
+
+    .center-column {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
     }
 
     /* ── Header ────────────────────────────────────── */
     header {
       position: sticky;
       top: 0;
+      height: 6%;
       z-index: 100;
       background: var(--surface);
       border-bottom: 1px solid var(--border);
@@ -59,7 +91,7 @@
       max-width: var(--max-w);
       margin: 0 auto;
       padding: 0 24px;
-      height: 64px;
+      height: 100%;
       display: flex;
       align-items: center;
       gap: 40px;
@@ -265,8 +297,6 @@
       border-radius: var(--radius);
       overflow: hidden;
       box-shadow: 0 2px 12px rgba(11,122,117,0.08);
-      /* Fills available vertical space; minimum sensible height on phone */
-      min-height: clamp(420px, 70dvh, 800px);
       position: relative;
       background: #f7fbfa;
     }
@@ -306,17 +336,28 @@
 
     .frame-loading p { font-size: 0.85rem; color: var(--ink-soft); }
 
+    /* Frame labels — visible in non-prod only */
+    .frame-label { display: none; }
+    body.env-local .frame-label,
+    body.env-dev .frame-label,
+    body.env-qa .frame-label { display: inline; }
+
+
     /* ── Footer ────────────────────────────────────── */
     footer {
       border-top: 1px solid var(--border);
       background: var(--surface);
+      height: 4%;
     }
 
     .footer-inner {
       max-width: var(--max-w);
       margin: 0 auto;
-      padding: 16px clamp(12px, 4vw, 24px);
+      padding: 0 clamp(12px, 4vw, 24px);
       width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
     }
 
     .footer-links {
@@ -384,7 +425,7 @@
       top: 0;
       right: 0;
       width: min(520px, 100vw);
-      height: 100vh;
+      height: 100%;
       background: var(--surface);
       border-left: 1px solid var(--border);
       box-shadow: -4px 0 24px rgba(11,122,117,0.10);
@@ -480,6 +521,18 @@
       .menu-toggle { display: flex; align-items: center; justify-content: center; }
       .panel-resize-handle,
       .legal-panel-expand { display: none; }
+      /* Mobile: hide side panels, filter becomes modal overlay */
+      .side-panel { display: none !important; }
+      .side-panel.mobile-filter-open {
+        display: flex !important;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        width: 100% !important;
+        z-index: 1000;
+        background: rgba(255,255,255,0.98);
+        padding: 16px;
+        overflow-y: auto;
+      }
     }
 
     /* Phone: tighten footer to 2×2 grid */
@@ -515,6 +568,7 @@
       <nav class="header-nav">
         <button type="button" class="nav-coming-soon" data-tip="You are already home">Home</button>
         <button type="button" onclick="openPanel('products.html','Products &amp; Services')">Products &amp; Services</button>
+        <button type="button" id="qaReportNav" style="display:none" onclick="openQAReport()">QA Report</button>
       </nav>
 
       <!-- Hamburger (visible on mobile only) -->
@@ -559,44 +613,948 @@
     <iframe id="legalPanelFrame" src="" title="Legal document" tabindex="0"></iframe>
   </div>
 
+  <!-- ══ ENVIRONMENT BANNER — full width, below header ══ -->
+  <div id="envBanner" style="display:none;background:#d97706;color:#fff;text-align:center;padding:4px 8px;font-size:13px;font-weight:600;letter-spacing:0.03em;width:100%;"></div>
+  <script>
+    (function() {
+      var host = window.location.hostname;
+      var isLocal = host === 'localhost' || host === '127.0.0.1';
+      var env = isLocal ? 'LOCAL'
+        : host.indexOf('dev.') === 0 ? 'DEV'
+        : host.indexOf('qa.') === 0 ? 'QA'
+        : '';
+      if (!env) return;
+      var banner = document.getElementById('envBanner');
+      banner.textContent = env;
+      banner.style.display = 'block';
+      if (env !== 'LOCAL') banner.style.background = '#dc2626';
+
+      // Per-env service URL roots — exposed for refreshBanner + token enrichment.
+      // Uses REQ-015 standard ports for local; HF Space pattern for non-local.
+      window._envLabel = env;
+      window._envServiceUrls = (function() {
+        if (isLocal) {
+          return {
+            findcare: '',  // same-origin (website server proxies /health to :7860)
+            evaluatecare: 'https://localhost:8001',
+            sharedservices: 'https://localhost:8002',
+          };
+        }
+        var prefix = env === 'PROD' ? '' : env.toLowerCase() + '-';
+        return {
+          findcare:        'https://skipsnow-' + prefix + 'chathealthyspace.hf.space',
+          evaluatecare:    'https://skipsnow-' + prefix + 'evaluatecarespace.hf.space',
+          sharedservices:  'https://skipsnow-' + prefix + 'sharedservicesspace.hf.space',
+        };
+      })();
+
+      // Banner refresh: switches build/version/framework display to whichever
+      // service currently owns the page. Per Skip directive 2026-04-20 — fixes
+      // banner-only-from-FindCare bug. Service argument is one of:
+      //   'findcare' | 'evaluatecare' | 'sharedservices'
+      window.refreshBanner = function(serviceKey) {
+        var root = (window._envServiceUrls || {})[serviceKey || 'findcare'] || '';
+        var healthUrl = root + '/health';
+        fetch(healthUrl).then(function(r) { return r.json(); }).then(function(d) {
+          banner.innerHTML = '<span style="margin-right:12px;">' + env + '</span>'
+            + '<span style="margin-right:12px;">Version: ' + (d.version || '?') + '</span>'
+            + '<span style="margin-right:12px;">Framework: ' + (d.framework || '?') + '</span>'
+            + '<span style="margin-right:12px;">Build: ' + (d.build || '?') + '</span>'
+            + '<span style="margin-right:12px;font-size:11px;opacity:0.85;">[' + (serviceKey || 'findcare') + ']</span>'
+            + '<span id="serviceButtons"></span>';
+          if (typeof window.renderBannerButtons === 'function') window.renderBannerButtons();
+        }).catch(function() {});
+      };
+
+      // Initial paint: FindCare owns the page on first load.
+      window.refreshBanner('findcare');
+    })();
+  </script>
+
   <!-- ══ MAIN — chat embed ════════════════════════════ -->
   <main>
     <span class="chat-label">Chat with Find Care AI</span>
 
-    <div class="chat-frame-wrapper">
-
-      <!-- Loading placeholder -->
-      <div class="frame-loading" id="frameLoading">
-        <div class="spinner"></div>
-        <p>Loading Find Care AI…</p>
+    <div class="content-row">
+      <!-- Left panel — 1% prod, 20% non-prod for dev visibility -->
+      <div class="side-panel" id="leftPanel" style="background:rgb(225,225,255);border-right:1px solid #d8e2e1;display:flex;align-items:center;justify-content:center;">
+        <span class="frame-label" style="color:#8888cc;font-size:9px;writing-mode:vertical-rl;text-orientation:mixed;">LEFT PANEL</span>
       </div>
 
-      <!--
-        CoreChatUX iframe URL resolved at runtime from chatConfig.
-        Hostname determines environment: dev/qa/prod.
-      -->
-      <iframe
-        id="coreChatFrame"
-        src=""
-        title="Find Care — CoreChatUX"
-        allow="microphone; clipboard-write"
-        loading="lazy"
-        onload="document.getElementById('frameLoading').classList.add('hidden')"
-      ></iframe>
-      <script>
-        (function() {
-          var host = window.location.hostname;
-          var env = host.indexOf('dev.') === 0 ? 'dev' : host.indexOf('qa.') === 0 ? 'qa' : 'prod';
-          // Naming convention: {org}-{env_prefix}-{base}.hf.space
-          var org = 'skipsnow';
-          var base = 'chathealthyspace';
-          var spaceName = env === 'prod' ? base : env + '-' + base;
-          document.getElementById('coreChatFrame').src = 'https://' + org + '-' + spaceName + '.hf.space';
-        })();
-      </script>
+      <!-- Center column — chat + provider selection + controls -->
+      <div class="center-column">
+        <!-- Chat iframe -->
+        <div class="chat-frame-wrapper" id="chatFrameWrapper">
+          <div class="frame-loading" id="frameLoading">
+            <div class="spinner"></div>
+            <p>Loading Find Care AI…</p>
+          </div>
+          <iframe
+            id="coreChatFrame"
+            src=""
+            title="Find Care — CoreChatUX"
+            allow="microphone; clipboard-write"
+            loading="lazy"
+            onload="document.getElementById('frameLoading').classList.add('hidden')"
+          ></iframe>
+        </div>
 
-    </div>
+        <!-- Provider Selection Panel — hidden until providers arrive (FC-SELECT-001) -->
+        <div id="providerSelectionPanel" style="display:none;flex-direction:column;border:1px solid #d8e2e1;border-radius:6px;background:#fff;overflow:hidden;margin-top:2px;">
+          <!-- Available providers — top -->
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#f0fffe;border-bottom:1px solid #d8e2e1;">
+            <span style="font-size:11px;font-weight:700;color:#0b7a75;text-transform:uppercase;">Available Providers</span>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span id="availableCount" style="font-size:10px;color:#6b7280;">0</span>
+              <button id="garbageBtn" title="Dismissed providers" style="background:none;border:none;cursor:pointer;font-size:14px;position:relative;">🗑️<span id="garbageCount" style="position:absolute;top:-6px;right:-8px;background:#dc2626;color:#fff;font-size:8px;font-weight:700;border-radius:50%;width:14px;height:14px;display:none;align-items:center;justify-content:center;">0</span></button>
+            </div>
+          </div>
+          <div id="availableList" style="max-height:200px;overflow-y:auto;overflow-x:hidden;"></div>
+
+          <!-- Drop zone divider -->
+          <div id="dropZoneDivider" style="padding:4px 10px;background:#fffbeb;border-top:1px solid #d8e2e1;border-bottom:1px solid #d8e2e1;display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:10px;font-weight:600;color:#d97706;text-transform:uppercase;">Selected for Evaluation</span>
+            <span id="selectedCount" style="font-size:10px;color:#6b7280;">0 / 5</span>
+          </div>
+
+          <!-- Selected providers — bottom -->
+          <div id="selectedList" style="min-height:40px;max-height:180px;overflow-y:auto;overflow-x:hidden;background:#fffdf7;">
+            <div id="selectedEmpty" style="padding:12px;text-align:center;color:#9ca3af;font-size:11px;">
+              Drag providers here or click ↓ to select (max 5)
+            </div>
+          </div>
+        </div>
+
+        <!-- Control Frame — outside the iframe wrapper, visible canvas -->
+        <div id="guiControlFrame" style="height:7%;overflow:hidden;transition:all 0.2s ease;border-top:1px solid #d8e2e1;background:#fafaf9;display:flex;align-items:center;justify-content:center;">
+          <span class="frame-label" style="color:#ccc;font-size:9px;">CONTROL FRAME</span>
+        </div>
+      </div> <!-- /center-column -->
+
+      <!-- Right panel — 1%, expands for leaf pages -->
+      <div class="side-panel" id="rightPanel" style="background:#f5f5f4;border-left:1px solid #d8e2e1;display:flex;align-items:center;justify-content:center;">
+        <span class="frame-label" style="color:#ccc;font-size:9px;writing-mode:vertical-rl;text-orientation:mixed;">RIGHT PANEL</span>
+      </div>
+    </div> <!-- /content-row -->
   </main>
+
+  <!-- Scripts for iframe URL and control frame postMessage -->
+  <script>
+    (function() {
+      var host = window.location.hostname;
+      var isLocal = host === 'localhost' || host === '127.0.0.1';
+      var env = isLocal ? 'local'
+        : host.indexOf('dev.') === 0 ? 'dev'
+        : host.indexOf('qa.') === 0 ? 'qa'
+        : 'prod';
+      document.body.classList.add('env-' + env);
+
+      // Build iframe URL from environment — single source of truth
+      var src;
+      if (isLocal) {
+        src = 'https://localhost:7860';  // FindCare backend serves React static files
+      } else {
+        var org = 'skipsnow';
+        var base = 'chathealthyspace';
+        var spaceName = env === 'prod' ? base : env + '-' + base;
+        src = 'https://' + org + '-' + spaceName + '.hf.space';
+      }
+
+      // QA Report + Shared Services — dev/local only
+      if (env !== 'prod') {
+        document.getElementById('qaReportNav').style.display = '';
+      }
+      // sharedServicesNav button lives inside #envBanner — visible when banner is visible
+      // No separate show/hide needed (BUG-UX-021)
+      window._hfBaseUrl = src;
+      window.openQAReport = function() {
+        openPanel(src + '/qa-report', 'QA Report — v0.1.4');
+      };
+
+      // SEC-HTTPS-001-REQ-021/022: refresh BOTH token panels on every
+      // page-ownership change.
+      //   • LEFT panel always shows FindCare's own /session token (FC's
+      //     permanent territory, REQ-022). Verified by SharedServices so
+      //     the panel honestly reports verified-state with each rotation.
+      //   • RIGHT panel shows the page-owning service's own /session token
+      //     (REQ-021). Verified by an independent third party so mutual
+      //     authentication is meaningful (FC verifies SS/EC tokens; SS
+      //     verifies FC tokens when FC owns the page).
+      // owner: 'findcare' | 'evaluatecare' | 'sharedservices'
+      window.refreshTokenPanels = function(owner) {
+        var apiBase = window._hfBaseUrl || '';
+        var urls = window._envServiceUrls || {};
+        var sharedUrl = urls.sharedservices || 'https://localhost:8002';
+        var evalUrl   = urls.evaluatecare   || 'https://localhost:8001';
+
+        function mintAndVerify(minterUrl, verifierUrl) {
+          return fetch(minterUrl + '/session')
+            .then(function(r) { return r.json(); })
+            .then(function(token) {
+              return fetch(verifierUrl + '/verify-token', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({session_token: token})
+              });
+            })
+            .then(function(r) { return r.json(); });
+        }
+
+        // LEFT — FC mints, SS verifies. Always.
+        mintAndVerify(apiBase, sharedUrl)
+          .then(function(result) {
+            if (!result || !result.session_token) return;
+            var sessionEl = document.getElementById('guiSessionCell') || document.getElementById('guiSessionId');
+            if (sessionEl) sessionEl.innerHTML = window.buildTokenDisplayHtml(result.session_token);
+          })
+          .catch(function(e) { console.error('LEFT panel refresh failed:', e); });
+
+        // RIGHT — owner mints, independent verifier checks signature.
+        var minterUrl, verifierUrl, color, label, bg;
+        if (owner === 'sharedservices') {
+          minterUrl = sharedUrl; verifierUrl = apiBase;
+          color = '#0b7a75'; label = 'Shared Services'; bg = '#f0fffe';
+        } else if (owner === 'evaluatecare') {
+          minterUrl = evalUrl;   verifierUrl = apiBase;
+          color = '#d97706'; label = 'EvaluateCare'; bg = '#fff7ed';
+        } else {
+          // findcare owns
+          minterUrl = apiBase;   verifierUrl = sharedUrl;
+          color = '#0b7a75'; label = 'FindCare'; bg = '#f0fffe';
+        }
+
+        mintAndVerify(minterUrl, verifierUrl)
+          .then(function(result) {
+            var rightPanel = document.getElementById('rightPanel');
+            if (!rightPanel || !result || !result.session_token) return;
+            var st = result.session_token;
+            rightPanel.style.alignItems = 'stretch';
+            rightPanel.style.justifyContent = 'flex-start';
+            rightPanel.style.flexDirection = 'column';
+            rightPanel.style.overflow = 'auto';
+            rightPanel.innerHTML =
+                '<div style="padding:8px 10px;border-bottom:2px solid ' + color + ';background:' + bg + ';">'
+              + '<div style="font-size:11px;font-weight:700;color:' + color + ';text-transform:uppercase;">' + label + '</div>'
+              + '<div style="font-size:9px;color:#6b7280;margin-top:2px;">Mutual authentication test</div>'
+              + '</div>'
+              + window.buildTokenDisplayHtml(st);
+          })
+          .catch(function(e) { console.error('RIGHT panel refresh failed (owner=' + owner + '):', e); });
+      };
+      // DEVOPS-BANNER-B006: 3-button banner with hot/cold states.
+      // The service that owns the page renders cold (disabled + tooltip).
+      // Called after window._pageOwner changes, and once on initial paint.
+      window.renderBannerButtons = function() {
+        var span = document.getElementById('serviceButtons');
+        if (!span) return;
+        var owner = window._pageOwner || 'findcare';
+        var services = [
+          { key: 'findcare',       name: 'FindCare',       color: '#0b7a75', handler: 'window.gotoFindCare()' },
+          { key: 'evaluatecare',   name: 'EvaluateCare',   color: '#d97706', handler: 'window.gotoEvaluateCare()' },
+          { key: 'sharedservices', name: 'SharedServices', color: '#6366f1', handler: 'window.gotoSharedServices()' }
+        ];
+        var html = '';
+        services.forEach(function(s) {
+          var isActive = (owner === s.key);
+          var style = isActive
+            ? 'margin-left:8px;background:#d1d5db;color:#6b7280;border:1px solid #d1d5db;border-radius:3px;padding:2px 8px;font-size:11px;font-weight:600;cursor:not-allowed;opacity:0.75;'
+            : 'margin-left:8px;background:#fff;color:' + s.color + ';border:1px solid #fff;border-radius:3px;padding:2px 8px;font-size:11px;font-weight:600;cursor:pointer;';
+          html += '<button type="button" data-service="' + s.key + '" '
+            + (isActive ? 'disabled title="You are in the ' + s.name + ' server" ' : ('onclick="' + s.handler + '" '))
+            + 'style="' + style + '">'
+            + s.name
+            + '</button>';
+        });
+        span.innerHTML = html;
+      };
+
+      // Banner button: always-visible explicit return-to-FindCare action.
+      // Replaces the old Apply-Filter-in-EvalCare-mode overloading, which
+      // didn't reliably reset phase + focus input (BUG-UX-022/023 workaround
+      // approved by human 2026-04-18).
+      window.gotoFindCare = function() { window.returnToFindCare(); };
+      window.gotoSharedServices = function() { window.openSharedServices(); };
+      window.gotoEvaluateCare = function() {
+        // DEVOPS-BANNER-B006: banner-initiated handoff to EvaluateCare.
+        // Mirrors openSharedServices but hits /evaluate/* via FindCare proxy.
+        window._pageOwner = 'evaluatecare';
+        if (typeof window.renderBannerButtons === 'function') window.renderBannerButtons();
+        // DEVOPS-BANNER-B007: banner build/version reflect new owner's /health.
+        if (typeof window.refreshBanner === 'function') window.refreshBanner('evaluatecare');
+        var chatFrame = document.getElementById('coreChatFrame');
+        var apiBase = window._hfBaseUrl || '';
+        fetch(apiBase + '/evaluate/splash')
+          .then(function(r) { return r.json(); })
+          .then(function(d) {
+            chatFrame.style.display = 'none';
+            var shSplash = document.getElementById('sharedSplash');
+            if (shSplash) shSplash.style.display = 'none';
+            var centerArea = chatFrame.parentElement;
+            var splashDiv = document.getElementById('evalcareSplash');
+            if (!splashDiv) {
+              splashDiv = document.createElement('div');
+              splashDiv.id = 'evalcareSplash';
+              splashDiv.style.cssText = 'flex:1;display:flex;align-items:center;justify-content:center;background:#fff;';
+              centerArea.appendChild(splashDiv);
+            }
+            splashDiv.style.display = 'flex';
+            splashDiv.innerHTML = d.html || '';
+          })
+          .catch(function() {});
+        // SEC-HTTPS-001-REQ-021: token MUST come from page-owning service.
+        // EvaluateCare mints with evalcare.key; FindCare verifies with evalcare.crt.
+        // refreshTokenPanels also rotates the LEFT panel (FC /session) per REQ-022.
+        window.refreshTokenPanels('evaluatecare');
+      };
+
+      window.returnToFindCare = function() {
+        var chatFrame = document.getElementById('coreChatFrame');
+        var apiBase = window._hfBaseUrl || '';
+        // Always run the return flow so the UI resets even when pageOwner
+        // is already findcare (covers stale-results cleanup).
+        window._pageOwner = 'findcare';
+        if (typeof window.renderBannerButtons === 'function') window.renderBannerButtons();
+        // DEVOPS-BANNER-B007: banner build/version reflect new owner's /health.
+        if (typeof window.refreshBanner === 'function') window.refreshBanner('findcare');
+        fetch(apiBase + '/transfer/to-findcare', { method: 'POST' })
+          .then(function(r) { return r.json(); })
+          .catch(function() { return {}; })
+          .then(function() {
+            var ecSplash = document.getElementById('evalcareSplash');
+            if (ecSplash) ecSplash.style.display = 'none';
+            var shSplash = document.getElementById('sharedSplash');
+            if (shSplash) shSplash.style.display = 'none';
+            chatFrame.style.display = '';
+            chatFrame.contentWindow.postMessage({type: 'gui:reset'}, '*');
+            // SEC-HTTPS-001-REQ-021: FindCare mints, SharedServices verifies.
+            // Both panels refresh on every ownership change (REQ-022).
+            window.refreshTokenPanels('findcare');
+          });
+      };
+
+      window.openSharedServices = function() {
+        // Transfer control to SharedServices (mirrors EvaluateCare pattern)
+        window._pageOwner = 'sharedservices';
+        if (typeof window.renderBannerButtons === 'function') window.renderBannerButtons();
+        // DEVOPS-BANNER-B007: banner build/version reflect new owner's /health.
+        if (typeof window.refreshBanner === 'function') window.refreshBanner('sharedservices');
+        var chatFrame = document.getElementById('coreChatFrame');
+        var apiBase = src;
+
+        // Get session token from left panel for mutual auth verification
+        var sessionEl = document.getElementById('guiSessionId');
+        var sessionToken = sessionEl ? sessionEl.textContent : '';
+
+        fetch(apiBase + '/shared/splash')
+          .then(function(r) { return r.json(); })
+          .then(function(d) {
+            chatFrame.style.display = 'none';
+            // Hide EvaluateCare splash if visible
+            var ecSplash = document.getElementById('evalcareSplash');
+            if (ecSplash) ecSplash.style.display = 'none';
+            var centerArea = chatFrame.parentElement;
+            var splashDiv = document.getElementById('sharedSplash');
+            if (!splashDiv) {
+              splashDiv = document.createElement('div');
+              splashDiv.id = 'sharedSplash';
+              splashDiv.style.cssText = 'flex:1;display:flex;align-items:center;justify-content:center;background:#fff;';
+              centerArea.appendChild(splashDiv);
+            }
+            splashDiv.style.display = 'flex';
+            splashDiv.innerHTML = d.html || '';
+          })
+          .catch(function() {
+            chatFrame.style.display = 'none';
+            var centerArea = chatFrame.parentElement;
+            var splashDiv = document.getElementById('sharedSplash');
+            if (!splashDiv) {
+              splashDiv = document.createElement('div');
+              splashDiv.id = 'sharedSplash';
+              splashDiv.style.cssText = 'flex:1;display:flex;align-items:center;justify-content:center;background:#fff;';
+              centerArea.appendChild(splashDiv);
+            }
+            splashDiv.style.display = 'flex';
+            splashDiv.innerHTML = '<div style="text-align:center;padding:20px;color:#6b7280;">Shared Services unavailable</div>';
+          });
+
+        // SEC-HTTPS-001-REQ-021: token MUST come from page-owning service.
+        // SharedServices mints with shared.key; FindCare verifies with shared.crt.
+        // refreshTokenPanels also rotates the LEFT panel (FC /session) per REQ-022.
+        window.refreshTokenPanels('sharedservices');
+      };
+
+      // Retry loading iframe — wait 3s between attempts, max 10 tries
+      var iframe = document.getElementById('coreChatFrame');
+      var maxRetries = 60;  // 60 × 10s = 10 min — HF Space can take 2-3 min to restart
+      var attempt = 0;
+      function tryLoad() {
+        attempt++;
+        iframe.src = src;
+        iframe.onerror = function() {
+          if (attempt < maxRetries) {
+            console.log('[iframe] Load attempt ' + attempt + ' failed, retrying in 10s...');
+            setTimeout(tryLoad, 10000);
+          } else {
+            console.error('[iframe] Failed to load after ' + maxRetries + ' attempts');
+          }
+        };
+      }
+      tryLoad();
+    })();
+
+    (function() {
+      var frame = document.getElementById('guiControlFrame');
+      var chatFrame = document.getElementById('coreChatFrame');
+      // Page ownership: 'findcare', 'evaluatecare', or 'sharedservices'
+      if (!window._pageOwner) window._pageOwner = 'findcare';
+
+      // EPIC-002-F-001-S-012-REQ-B-007: Parse token into nonce and GUID, build display HTML
+      // Defined on window so all IIFEs can access it
+      window.buildTokenDisplayHtml = function(st) {
+        var token = st.token_received || '';
+        // Token format: CH{nonce:17}{created:17}{guid:32} = 68 chars
+        var nonce = token.length >= 36 ? token.substring(2, 36) : token;
+        var guid = token.length >= 68 ? token.substring(36) : '';
+        // EPIC-002-F-001-S-012-REQ-B-009 — Env + PST Time rows.
+        // Env comes from the website's environment label (set during banner init).
+        var envLabel = window._envLabel || 'UNKNOWN';
+        // Time: parse ISO created_at (or fall back to current); render in America/Los_Angeles.
+        var ts;
+        try {
+            ts = st.created_at ? new Date(st.created_at) : new Date();
+            if (isNaN(ts.getTime())) ts = new Date();
+        } catch (e) { ts = new Date(); }
+        var pstTime;
+        try {
+            pstTime = ts.toLocaleString('en-US', {
+                timeZone: 'America/Los_Angeles',
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit',
+                hour12: false
+            });
+        } catch (e) { pstTime = ts.toISOString(); }
+        return '<div style="padding:8px 10px;border-top:2px solid #0b7a75;background:#f0fffe;margin-top:4px;">'
+          + '<div style="font-size:10px;font-weight:700;color:#0b7a75;text-transform:uppercase;">Session Verification</div>'
+          + '<div style="font-size:9px;color:#374151;margin-top:4px;word-break:break-all;">'
+          + '<b style="color:#6366f1;">Signed token:</b> <span style="color:#6366f1;">' + (st.signature_received || 'none') + '</span></div>'
+          + '<div style="font-size:9px;color:#374151;margin-top:2px;word-break:break-all;">'
+          + '<b style="color:#d97706;">Nonce:</b> <span style="color:#d97706;">' + nonce + '</span></div>'
+          + '<div style="font-size:9px;color:#374151;margin-top:2px;word-break:break-all;">'
+          + '<b style="color:#0b7a75;">GUID:</b> <span style="color:#0b7a75;">' + guid + '</span></div>'
+          + '<div style="font-size:9px;color:#374151;margin-top:2px;">'
+          + '<b>Server, serving security token:</b> ' + (st.origin || 'unknown')
+          + ' &middot; <b>Verified:</b> <span style="color:' + (st.verified ? '#059669' : '#dc2626') + ';font-weight:700;">' + (st.verified ? 'YES ✓' : 'FAILED ✗') + '</span></div>'
+          + '<div style="font-size:9px;color:#374151;margin-top:2px;">'
+          + '<b>Env:</b> <span style="color:#7c3aed;font-weight:700;">' + envLabel + '</span></div>'
+          + '<div style="font-size:9px;color:#374151;margin-top:2px;">'
+          + '<b>Time:</b> PST <span style="color:#374151;">' + pstTime + '</span></div>'
+          + '</div>';
+      }
+
+      window.addEventListener('message', function(event) {
+        if (!chatFrame || !chatFrame.contentWindow) return;
+        if (event.source !== chatFrame.contentWindow) return;
+
+        var msg = event.data;
+        if (!msg || typeof msg !== 'object') return;
+
+        console.log('[ControlFrame] Received message:', msg.type);
+        if (msg.type === 'gui:render') {
+          frame.innerHTML = msg.html || '';
+          var actions = frame.querySelectorAll('[data-gui-action]');
+          for (var i = 0; i < actions.length; i++) {
+            (function(el) {
+              var tag = el.tagName.toLowerCase();
+              var eventType = (tag === 'select') ? 'change' : 'click';
+              el.addEventListener(eventType, function() {
+                chatFrame.contentWindow.postMessage({
+                  type: 'gui:event',
+                  action: el.getAttribute('data-gui-action'),
+                  value: (tag === 'select') ? el.value : (el.getAttribute('data-gui-value') || '')
+                }, '*');
+              });
+            })(actions[i]);
+          }
+        }
+
+        // Timer — shows elapsed time in left side of control frame during LLM response
+        if (msg.type === 'gui:timer') {
+          var timerEl = document.getElementById('guiTimer');
+          if (!timerEl) {
+            frame.style.justifyContent = 'flex-start';
+            frame.style.paddingLeft = '12px';
+            frame.style.gap = '10px';
+            frame.innerHTML = '<div style="display:flex;align-items:center;gap:10px;background:#f0f4f8;border:1px solid #d8e2e1;border-radius:6px;padding:4px 14px;box-shadow:inset 0 1px 2px rgba(0,0,0,0.06);">'
+              + '<span id="guiTimer" style="font-size:12px;color:#0b7a75;font-weight:600;min-width:40px;">Thinking\u2026</span>'
+              + '<button id="guiTimerStop" style="background:linear-gradient(180deg,#f5f5f4,#e7e5e4);border:1px solid #d1d5db;border-radius:4px;padding:3px 12px;font-size:11px;color:#57534e;cursor:pointer;font-weight:500;box-shadow:0 1px 2px rgba(0,0,0,0.1);"'
+              + ' onmousedown="this.style.transform=\'translateY(1px)\';this.style.boxShadow=\'none\'"'
+              + ' onmouseup="this.style.transform=\'\';this.style.boxShadow=\'0 1px 2px rgba(0,0,0,0.1)\'"'
+              + '>Stop</button></div>';
+            document.getElementById('guiTimerStop').addEventListener('click', function() {
+              chatFrame.contentWindow.postMessage({ type: 'gui:event', action: 'stop-thinking' }, '*');
+            });
+            timerEl = document.getElementById('guiTimer');
+          }
+          timerEl.textContent = 'Thinking\u2026 ' + msg.seconds + 's';
+        }
+
+        if (msg.type === 'gui:timer-clear') {
+          var timerEl = document.getElementById('guiTimer');
+          if (timerEl) {
+            timerEl.remove();
+            frame.dataset.hasResults = 'true';
+            // Clear frame — evaluate button will be created by next gui:selection-count
+            frame.innerHTML = '';
+            frame.style.justifyContent = 'flex-end';
+            frame.style.paddingRight = '12px';
+          }
+        }
+
+        if (msg.type === 'gui:clear') {
+          frame.innerHTML = '<span class="frame-label" style="color:#ccc;font-size:9px;">CONTROL FRAME</span>';
+        }
+
+        // FC-EVAL-001: Evaluate button in control frame — cold/hot based on selection count
+        // Only show after search results exist (gui:filter or gui:timer-clear signals results)
+        if (msg.type === 'gui:selection-count') {
+          // Don't show button until we've had search results
+          if (!frame.dataset.hasResults) return;
+
+          var evalBtn = document.getElementById('guiEvalBtn');
+          var count = msg.count || 0;
+          var isCold = count === 0;
+
+          if (!evalBtn) {
+            // Create the button — clear the CONTROL FRAME label first
+            frame.innerHTML = '';
+            frame.style.justifyContent = 'flex-end';
+            frame.style.paddingRight = '12px';
+            var btnContainer = document.createElement('div');
+            btnContainer.style.cssText = 'display:flex;align-items:center;gap:8px;';
+            btnContainer.innerHTML = '<button id="guiEvalBtn" style="padding:6px 16px;border-radius:5px;border:none;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s;">Evaluate These Providers</button>';
+            frame.appendChild(btnContainer);
+            evalBtn = document.getElementById('guiEvalBtn');
+
+            evalBtn.addEventListener('click', function() {
+              if (evalBtn.dataset.cold === 'true') {
+                // Cold click — show instruction popup
+                var popup = document.createElement('div');
+                popup.id = 'evalInstructPopup';
+                popup.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border:2px solid #0b7a75;border-radius:8px;padding:20px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,0.15);max-width:360px;font-family:system-ui,sans-serif;';
+                popup.innerHTML = '<div style="font-weight:700;color:#0b7a75;font-size:14px;margin-bottom:10px;">How to select providers</div>'
+                  + '<div style="font-size:12px;color:#374151;line-height:1.6;">'
+                  + '<p><b>Click ↓</b> on a provider card to select it for evaluation.</p>'
+                  + '<p><b>Drag and drop</b> a provider card to the orange "Selected for Evaluation" area.</p>'
+                  + '<p><b>Click 🗑</b> to dismiss a provider you don\'t want.</p>'
+                  + '<p style="color:#6b7280;margin-top:8px;">Select up to 5 providers, then click Evaluate.</p>'
+                  + '</div>'
+                  + '<button onclick="this.parentElement.remove()" style="margin-top:12px;padding:5px 16px;border-radius:4px;border:1px solid #0b7a75;background:#f0fffe;color:#0b7a75;font-size:11px;font-weight:600;cursor:pointer;">Got it</button>';
+                document.body.appendChild(popup);
+              } else {
+                // Hot click — send to evaluate
+                // Transfer control to EvaluateCare
+                window._pageOwner = 'evaluatecare';
+                if (typeof window.renderBannerButtons === 'function') window.renderBannerButtons();
+                // DEVOPS-BANNER-B007: banner build/version reflect new owner's /health.
+                if (typeof window.refreshBanner === 'function') window.refreshBanner('evaluatecare');
+                var chatSrc = chatFrame.src || '';
+                var apiBase = chatSrc.replace(/\/static\/.*$/, '').replace(/\/$/, '');
+                if (!apiBase) apiBase = '';
+                // Fetch splash from EvaluateCare service (via FindCare proxy)
+                fetch(apiBase + '/evaluate/splash')
+                  .then(function(r) { return r.json(); })
+                  .then(function(d) {
+                    // Paint EvaluateCare splash in CENTER panel (iframe area)
+                    chatFrame.style.display = 'none';
+                    var centerArea = chatFrame.parentElement;
+                    var splashDiv = document.getElementById('evalcareSplash');
+                    if (!splashDiv) {
+                      splashDiv = document.createElement('div');
+                      splashDiv.id = 'evalcareSplash';
+                      splashDiv.style.cssText = 'flex:1;display:flex;align-items:center;justify-content:center;background:#fff;';
+                      centerArea.appendChild(splashDiv);
+                    }
+                    splashDiv.style.display = 'flex';
+                    splashDiv.innerHTML = d.html || '';
+                  })
+                  .catch(function() {
+                    chatFrame.style.display = 'none';
+                    var centerArea = chatFrame.parentElement;
+                    var splashDiv = document.getElementById('evalcareSplash');
+                    if (!splashDiv) {
+                      splashDiv = document.createElement('div');
+                      splashDiv.id = 'evalcareSplash';
+                      splashDiv.style.cssText = 'flex:1;display:flex;align-items:center;justify-content:center;background:#fff;';
+                      centerArea.appendChild(splashDiv);
+                    }
+                    splashDiv.style.display = 'flex';
+                    splashDiv.innerHTML = '<div style="text-align:center;padding:20px;color:#6b7280;">EvaluateCare unavailable</div>';
+                  });
+                chatFrame.contentWindow.postMessage({ type: 'gui:event', action: 'evaluate-providers' }, '*');
+              }
+            });
+          }
+
+          // Update button state
+          if (isCold) {
+            evalBtn.style.background = 'linear-gradient(180deg,#e5e7eb,#d1d5db)';
+            evalBtn.style.color = '#9ca3af';
+            evalBtn.dataset.cold = 'true';
+            evalBtn.textContent = 'Evaluate These Providers';
+          } else {
+            evalBtn.style.background = 'linear-gradient(180deg,#d97706,#b45309)';
+            evalBtn.style.color = '#fff';
+            evalBtn.dataset.cold = 'false';
+            evalBtn.textContent = 'Evaluate ' + count + ' Provider' + (count > 1 ? 's' : '');
+          }
+        }
+
+        // Filter panel — renders in left panel
+        var leftPanel = document.getElementById('leftPanel');
+        if (msg.type === 'gui:filter') {
+          // Reset centering styles so filter content can flex and scroll
+          leftPanel.style.alignItems = 'stretch';
+          leftPanel.style.justifyContent = 'stretch';
+          leftPanel.classList.add('filter-active');
+          // Mobile: show as fullscreen overlay
+          if (window.innerWidth <= 600) {
+            leftPanel.classList.add('mobile-filter-open');
+          }
+          leftPanel.innerHTML = msg.html || '';
+          // Store search params for filter-apply
+          leftPanel.dataset.searchParams = msg.searchParams || '{}';
+          // Cache homeopathic generalists for toggle injection
+          window._homeoGeneralists = msg.homeopathicGeneralists || [];
+          // Attach handlers
+          var filterActions = leftPanel.querySelectorAll('[data-gui-action]');
+          for (var j = 0; j < filterActions.length; j++) {
+            (function(el) {
+              var tag = el.tagName.toLowerCase();
+              if (el.getAttribute('data-gui-action') === 'filter-apply') {
+                el.addEventListener('click', function() {
+                  // If EvaluateCare or SharedServices owns the page, transfer back to FindCare
+                  if (window._pageOwner === 'evaluatecare' || window._pageOwner === 'sharedservices') {
+                    window._pageOwner = 'findcare';
+                    // DEVOPS-BANNER-B007: banner reflects new owner's /health.
+                    if (typeof window.refreshBanner === 'function') window.refreshBanner('findcare');
+                    var chatSrc2 = chatFrame.src || '';
+                    var apiBase2 = chatSrc2.replace(/\/static\/.*$/, '').replace(/\/$/, '');
+                    if (!apiBase2) apiBase2 = '';
+                    fetch(apiBase2 + '/transfer/to-findcare', { method: 'POST' })
+                      .then(function(r) { return r.json(); })
+                      .then(function(d) {
+                        // Hide EvaluateCare and SharedServices splash divs
+                        var ecSplash = document.getElementById('evalcareSplash');
+                        if (ecSplash) ecSplash.style.display = 'none';
+                        var shSplash = document.getElementById('sharedSplash');
+                        if (shSplash) shSplash.style.display = 'none';
+                        // Restore chat iframe
+                        chatFrame.style.display = '';
+                        // BUG-UX-022/023: RestoreState=false — reset FindCare to welcome, focus input
+                        chatFrame.contentWindow.postMessage({type: 'gui:reset'}, '*');
+                        // SEC-HTTPS-001-REQ-021/022: refresh BOTH panels.
+                        // FC mints, SS verifies; left panel re-fetches FC /session.
+                        window.refreshTokenPanels('findcare');
+                      });
+                    return;
+                  }
+                  // EPIC-006-F-002-S-001-REQ-T-005: Collect visible, checked specialty codes
+                  var checked = [];
+                  leftPanel.querySelectorAll('input[data-gui-action="filter-toggle"]:checked').forEach(function(cb) {
+                    var row = cb.closest('[data-spec-code]');
+                    if (row && row.style.display === 'none') return;
+                    checked.push(cb.getAttribute('data-gui-value'));
+                  });
+
+                  // (1) Detect if there is a change from last applied filter
+                  var lastApplied = leftPanel.dataset.lastAppliedCodes || '';
+                  var currentCodes = JSON.stringify(checked.sort());
+                  if (currentCodes === lastApplied) {
+                    // No change — show message
+                    var noChangeMsg = leftPanel.querySelector('#filterNoChangeMsg');
+                    if (!noChangeMsg) {
+                      var applyBtn = leftPanel.querySelector('[data-gui-action="filter-apply"]');
+                      noChangeMsg = document.createElement('div');
+                      noChangeMsg.id = 'filterNoChangeMsg';
+                      noChangeMsg.style.cssText = 'color:#d97706;font-size:10px;text-align:center;padding:3px;font-weight:600;';
+                      noChangeMsg.textContent = 'No filter changes to apply.';
+                      applyBtn.parentNode.insertBefore(noChangeMsg, applyBtn);
+                      setTimeout(function() { if (noChangeMsg.parentNode) noChangeMsg.remove(); }, 3000);
+                    }
+                    return;
+                  }
+
+                  // Remove any previous no-change message
+                  var oldMsg = leftPanel.querySelector('#filterNoChangeMsg');
+                  if (oldMsg) oldMsg.remove();
+
+                  // Store current codes as last applied
+                  leftPanel.dataset.lastAppliedCodes = currentCodes;
+
+                  // (2-3) Send to iframe — iframe clears providers and re-queries DB
+                  var prescriberCb = leftPanel.querySelector('input[data-gui-value="prescribers"]');
+                  var prescribersOnly = prescriberCb ? prescriberCb.checked : false;
+                  chatFrame.contentWindow.postMessage({
+                    type: 'gui:event',
+                    action: 'filter-apply',
+                    value: JSON.stringify(checked),
+                    prescribers_only: prescribersOnly,
+                    searchParams: leftPanel.dataset.searchParams
+                  }, '*');
+                });
+              }
+              if (el.getAttribute('data-gui-action') === 'toggle-all') {
+                el.addEventListener('click', function() {
+                  var boxes = leftPanel.querySelectorAll('input[data-gui-action="filter-toggle"]');
+                  var visibleBoxes = [];
+                  boxes.forEach(function(cb) {
+                    if (cb.closest('[data-spec-code]').style.display !== 'none') visibleBoxes.push(cb);
+                  });
+                  var checkedCount = visibleBoxes.filter(function(cb) { return cb.checked; }).length;
+                  var majority = checkedCount > visibleBoxes.length / 2;
+                  var newState = !majority;
+                  visibleBoxes.forEach(function(cb) { cb.checked = newState; });
+                  el.textContent = newState ? 'Uncheck All' : 'Check All';
+                  // Update Your choices count
+                  var showingEl = leftPanel.querySelector('#filterShowing');
+                  if (showingEl) showingEl.textContent = newState ? visibleBoxes.length : 0;
+                });
+              }
+              if (el.getAttribute('data-gui-action') === 'evaluate-providers') {
+                el.addEventListener('click', function() {
+                  chatFrame.contentWindow.postMessage({
+                    type: 'gui:event',
+                    action: 'evaluate-providers'
+                  }, '*');
+                });
+              }
+              if (el.getAttribute('data-gui-action') === 'filter-provider-type') {
+                el.addEventListener('change', function() {
+                  // If EvaluateCare or SharedServices owns the page, transfer back to FindCare
+                  if (window._pageOwner === 'evaluatecare' || window._pageOwner === 'sharedservices') {
+                    window._pageOwner = 'findcare';
+                    // DEVOPS-BANNER-B007: banner reflects new owner's /health.
+                    if (typeof window.refreshBanner === 'function') window.refreshBanner('findcare');
+                    var chatSrc3 = chatFrame.src || '';
+                    var apiBase3 = chatSrc3.replace(/\/static\/.*$/, '').replace(/\/$/, '');
+                    if (!apiBase3) apiBase3 = '';
+                    fetch(apiBase3 + '/transfer/to-findcare', { method: 'POST' })
+                      .then(function(r) { return r.json(); })
+                      .then(function(d) {
+                        var ecSplash = document.getElementById('evalcareSplash');
+                        if (ecSplash) ecSplash.style.display = 'none';
+                        var shSplash = document.getElementById('sharedSplash');
+                        if (shSplash) shSplash.style.display = 'none';
+                        chatFrame.style.display = '';
+                        // BUG-UX-022/023: RestoreState=false — reset FindCare to welcome, focus input
+                        chatFrame.contentWindow.postMessage({type: 'gui:reset'}, '*');
+                        // SEC-HTTPS-001-REQ-021/022: refresh BOTH panels.
+                        // FC mints, SS verifies; left panel re-fetches FC /session.
+                        window.refreshTokenPanels('findcare');
+                      });
+                    return;
+                  }
+                  var val = el.getAttribute('data-gui-value');
+                  // Switch changed — reset all specialty checkboxes to checked,
+                  // then show/hide based on filter state
+                  var prescCb = leftPanel.querySelector('input[data-gui-value="prescribers"]');
+                  var homeoCb = leftPanel.querySelector('input[data-gui-value="homeopathic"]');
+                  var prescOn = prescCb ? prescCb.checked : false;
+                  var homeoOn = homeoCb ? homeoCb.checked : false;
+                  // Inject homeopathic generalists if toggle is ON
+                  if (homeoOn && window._homeoGeneralists && window._homeoGeneralists.length > 0) {
+                    var scrollContainer = leftPanel.querySelector('[style*="overflow-y"]') || leftPanel.querySelector('[style*="max-height"]');
+                    if (scrollContainer) {
+                      var existingCodes = new Set();
+                      leftPanel.querySelectorAll('[data-spec-code]').forEach(function(el) {
+                        existingCodes.add(el.getAttribute('data-spec-code'));
+                      });
+                      window._homeoGeneralists.forEach(function(g) {
+                        if (!existingCodes.has(g.code)) {
+                          var div = document.createElement('div');
+                          div.style.cssText = 'display:block;padding:4px 8px;border-bottom:1px solid #f0f0f0;';
+                          div.setAttribute('data-spec-code', g.code);
+                          div.setAttribute('data-can-prescribe', String(g.can_prescribe || false));
+                          div.setAttribute('data-homeopathic', 'true');
+                          div.setAttribute('data-homeo-injected', 'true');
+                          div.innerHTML = '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;">' +
+                            '<input type="checkbox" data-gui-action="filter-toggle" data-gui-value="' + g.code + '" checked style="accent-color:#0b7a75;width:12px;height:12px;" />' +
+                            '<span style="color:#1f2937;">' + g.name + '</span></label>';
+                          scrollContainer.appendChild(div);
+                        }
+                      });
+                    }
+                  } else {
+                    // Remove injected generalists when toggle is OFF
+                    leftPanel.querySelectorAll('[data-homeo-injected]').forEach(function(el) { el.remove(); });
+                  }
+
+                  var items = leftPanel.querySelectorAll('[data-spec-code]');
+                  var shown = 0;
+                  var total = items.length;
+                  // Show/hide AND check/uncheck based on switch state
+                  // Hidden items get unchecked so Apply Filter detects the change
+                  items.forEach(function(item) {
+                    var canPresc = item.getAttribute('data-can-prescribe') === 'true';
+                    var isHomeo = item.getAttribute('data-homeopathic') === 'true';
+                    var show = true;
+                    if (prescOn && !canPresc) show = false;
+                    if (homeoOn && !isHomeo) show = false;
+                    item.style.display = show ? '' : 'none';
+                    var cb = item.querySelector('input[data-gui-action="filter-toggle"]');
+                    if (cb) cb.checked = show;
+                    if (show) shown++;
+                  });
+                  // Update counts — filtered count and your choices
+                  var filteredEl = leftPanel.querySelector('#filterFilteredCount');
+                  if (filteredEl) filteredEl.textContent = shown;
+                  var showingEl = leftPanel.querySelector('#filterShowing');
+                  if (showingEl) showingEl.textContent = shown;
+                  // Update prescribers & homeopathic label
+                  var filteredLabel = filteredEl ? filteredEl.parentElement.querySelector('div:first-child') : null;
+                  if (filteredLabel) {
+                    filteredLabel.textContent = homeoOn ? 'Prescribers & homeopathic' : 'Prescribers';
+                  }
+                  // Update toggle button text
+                  var toggleBtn = leftPanel.querySelector('[data-gui-action="toggle-all"]');
+                  if (toggleBtn) toggleBtn.textContent = 'Uncheck All';
+                });
+              }
+            })(filterActions[j]);
+          }
+
+          // Apply initial filter if prescribers_only is default checked
+          if (msg.applyInitialFilter) {
+            var prescCb = leftPanel.querySelector('input[data-gui-value="prescribers"]');
+            if (prescCb && prescCb.checked) {
+              var items = leftPanel.querySelectorAll('[data-spec-code]');
+              var shown = 0;
+              var hidden = 0;
+              items.forEach(function(item) {
+                var canPresc = item.getAttribute('data-can-prescribe') === 'true';
+                if (!canPresc) {
+                  item.style.display = 'none';
+                  hidden++;
+                } else {
+                  shown++;
+                }
+              });
+              var showingEl = leftPanel.querySelector('#filterShowing');
+              if (showingEl) showingEl.textContent = shown;
+            }
+          }
+        }
+
+        // EvaluateCare result — render in right panel
+        if (msg.type === 'gui:evaluate-result') {
+          var rightPanel = document.getElementById('rightPanel');
+          if (rightPanel && msg.providers) {
+            var rows = msg.providers.map(function(p, i) {
+              return '<div style="padding:8px 10px;border-bottom:1px solid #e5e7eb;">'
+                + '<div style="font-weight:600;color:#1f2937;font-size:13px;">' + (i+1) + '. ' + (p.name || 'Unknown') + '</div>'
+                + (p.address ? '<div style="font-size:11px;color:#374151;">' + p.address + '</div>' : '')
+                + (p.county ? '<div style="font-size:10px;color:#6b7280;">' + p.county + '</div>' : '')
+                + (p.phone ? '<div style="font-size:10px;color:#6b7280;">Phone: ' + p.phone + '</div>' : '')
+                + '<div style="font-size:10px;color:#9ca3af;">NPI: ' + (p.npi || '') + '</div>'
+                + '</div>';
+            }).join('');
+            // Session token verification display — EPIC-002-F-001-S-012-REQ-B-007
+            var tokenHtml = '';
+            if (msg.session_token) {
+              tokenHtml = buildTokenDisplayHtml(msg.session_token);
+            }
+            rightPanel.style.alignItems = 'stretch';
+            rightPanel.style.justifyContent = 'flex-start';
+            rightPanel.style.flexDirection = 'column';
+            rightPanel.style.overflow = 'auto';
+            rightPanel.innerHTML = '<div style="padding:8px 10px;border-bottom:2px solid #d97706;background:#fffbeb;">'
+              + '<div style="font-size:11px;font-weight:700;color:#d97706;text-transform:uppercase;">EvaluateCare</div>'
+              + '<div style="font-size:9px;color:#6b7280;margin-top:2px;">' + msg.providers.length + ' providers · ' + (msg.question || '') + '</div>'
+              + '</div>'
+              + '<div style="overflow-y:auto;flex:1;">' + rows + '</div>'
+              + tokenHtml;
+            // BUG-UX-020: Update left panel with identical session verification
+            if (msg.session_token) {
+              var sessionEl = document.getElementById('guiSessionCell') || document.getElementById('guiSessionId');
+              if (sessionEl) {
+                sessionEl.innerHTML = buildTokenDisplayHtml(msg.session_token);
+              }
+            }
+          }
+        }
+
+        // SharedServices result — render in right panel (mirrors EvaluateCare pattern)
+        if (msg.type === 'gui:shared-result') {
+          var rightPanel = document.getElementById('rightPanel');
+          if (rightPanel) {
+            // EPIC-002-F-001-S-012-REQ-B-007: Use shared token display function
+            var tokenHtml = '';
+            if (msg.session_token) {
+              tokenHtml = buildTokenDisplayHtml(msg.session_token);
+            }
+            rightPanel.style.alignItems = 'stretch';
+            rightPanel.style.justifyContent = 'flex-start';
+            rightPanel.style.flexDirection = 'column';
+            rightPanel.style.overflow = 'auto';
+            rightPanel.innerHTML = '<div style="padding:8px 10px;border-bottom:2px solid #0b7a75;background:#f0fffe;">'
+              + '<div style="font-size:11px;font-weight:700;color:#0b7a75;text-transform:uppercase;">Shared Services</div>'
+              + '<div style="font-size:9px;color:#6b7280;margin-top:2px;">Mutual authentication test</div>'
+              + '</div>'
+              + tokenHtml;
+          }
+        }
+
+        // Session token display in left panel — in table cell below specialties
+        // BUG-UX-015: Must be below specialties, not beside
+        // BUG-UX-016: Must use identical display as right panel — buildTokenDisplayHtml
+        if (msg.type === 'gui:session-display') {
+          var sessionEl = document.getElementById('guiSessionCell') || document.getElementById('guiSessionId');
+          if (!sessionEl) {
+            leftPanel.insertAdjacentHTML('beforeend',
+              '<div id="guiSessionId" style="padding:4px 8px;border-top:1px solid #e5e7eb;"></div>');
+            sessionEl = document.getElementById('guiSessionId');
+          }
+          if (sessionEl) {
+            if (msg.session_token && typeof msg.session_token === 'object') {
+              // Full verified token — use identical display function
+              sessionEl.innerHTML = window.buildTokenDisplayHtml(msg.session_token);
+            } else {
+              // Initial raw token string (pre-verify) — build pending display
+              var token = msg.token || '';
+              var nonce = token.length >= 36 ? token.substring(2, 36) : token;
+              var guid = token.length >= 68 ? token.substring(36) : '';
+              sessionEl.innerHTML = '<div style="padding:8px 10px;border-top:2px solid #0b7a75;background:#f0fffe;margin-top:4px;">'
+                + '<div style="font-size:10px;font-weight:700;color:#0b7a75;text-transform:uppercase;">Session Verification</div>'
+                + '<div style="font-size:9px;color:#374151;margin-top:4px;word-break:break-all;">'
+                + '<b style="color:#d97706;">Nonce:</b> <span style="color:#d97706;">' + nonce + '</span></div>'
+                + '<div style="font-size:9px;color:#374151;margin-top:2px;word-break:break-all;">'
+                + '<b style="color:#0b7a75;">GUID:</b> <span style="color:#0b7a75;">' + guid + '</span></div>'
+                + '<div style="font-size:9px;color:#374151;margin-top:2px;">'
+                + '<b>Verified:</b> <span style="color:#6b7280;">Pending...</span></div>'
+                + '</div>';
+            }
+          }
+        }
+
+        if (msg.type === 'gui:event' && msg.action === 'highlight-filter') {
+          // Flash the filter panel to draw attention
+          leftPanel.style.transition = 'background 0.3s';
+          leftPanel.style.background = '#fffbcc';
+          setTimeout(function() { leftPanel.style.background = 'rgb(225,225,255)'; }, 800);
+          setTimeout(function() { leftPanel.style.background = '#fffbcc'; }, 1100);
+          setTimeout(function() { leftPanel.style.background = 'rgb(225,225,255)'; }, 1400);
+        }
+
+        if (msg.type === 'gui:filter-clear') {
+          leftPanel.style.alignItems = 'center';
+          leftPanel.style.justifyContent = 'center';
+          leftPanel.classList.remove('filter-active');
+          leftPanel.classList.remove('mobile-filter-open');
+          leftPanel.innerHTML = '<span class="frame-label" style="color:#8888cc;font-size:9px;writing-mode:vertical-rl;text-orientation:mixed;">LEFT PANEL</span>';
+        }
+      });
+    })();
+  </script>
 
   <!-- ══ FOOTER ═══════════════════════════════════════ -->
   <footer>

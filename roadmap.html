@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Copyright © 2026 Skip Snow. All rights reserved.
+  Copyright © 2026 ChatHealthy.ai LLC. All rights reserved.
   Licensed under the FindCare Evaluation License (FEL-1.0).
 
   Coded by Claude Sonnet 4.6 (Anthropic).
@@ -158,6 +158,17 @@
     .gm-m001 { background: var(--accent); border-color: #8a5c00; }
     .gm-m002 { background: var(--teal); border-color: #065955; width: 20px; height: 20px; border-width: 3px; }
     .gm-m003 { background: #7c3aed; border-color: #5b21b6; width: 20px; height: 20px; border-width: 3px; }
+    .gm-m004 { background: #d97706; border-color: #92400e; width: 20px; height: 20px; border-width: 3px; }
+    .gm-m005 { background: #059669; border-color: #065f46; width: 20px; height: 20px; border-width: 3px; }
+
+    .gantt-row-biz { background: #1a1a1a; border-bottom: 2px solid #333 !important; min-height: 42px; }
+    .gantt-row-biz .gantt-row-name { font-weight: 700; font-size: 0.9rem; color: #fff; }
+    .gantt-row-biz .gantt-row-id { color: #d97706; font-weight: 700; }
+    .gantt-row-biz .gantt-planned { color: #fff; }
+    .gantt-biz-label {
+      position: absolute; top: -16px; font-size: 9px; font-weight: 600;
+      white-space: nowrap; transform: translateX(-50%); z-index: 4;
+    }
 
     .gantt-row-ms       { background: var(--teal-light); border-bottom: 2px solid var(--teal-mid) !important; min-height: 36px; }
     .gantt-row-ms-beta  { background: #f5f3ff; border-bottom: 2px solid #c4b5fd !important; min-height: 36px; }
@@ -184,6 +195,58 @@
     .gl-future   { background: #7c3aed; }
     .gl-bug      { background: #9a5000; }
     .gl-today-line { width: 1px; height: 12px; background: var(--warn); opacity: 0.65; flex-shrink: 0; }
+  
+    /* ── Hamburger button (hidden on desktop) ──────── */
+    .menu-toggle {
+      display: none;
+      margin-left: auto;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 8px;
+      border-radius: var(--radius);
+      color: var(--ink-soft);
+      transition: background 0.15s;
+    }
+    .menu-toggle:hover { background: var(--teal-light); color: var(--teal); }
+    .menu-toggle svg { display: block; width: 22px; height: 22px; }
+
+    .mobile-nav {
+      display: none;
+      flex-direction: column;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px 14px;
+    }
+    .mobile-nav.open { display: flex; }
+    .mobile-nav a {
+      font-size: 0.95rem;
+      color: var(--ink-soft);
+      text-decoration: none;
+      padding: 10px 12px;
+      border-radius: var(--radius);
+      transition: color 0.15s, background 0.15s;
+    }
+    .mobile-nav a:hover { color: var(--teal); background: var(--teal-light); }
+
+    .mobile-home-bottom {
+      display: none;
+      text-align: center;
+      padding: 16px;
+      margin-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+    .mobile-home-bottom a {
+      color: var(--teal);
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 500;
+    }
+
+    @media (max-width: 600px) {
+      .menu-toggle { display: flex; align-items: center; justify-content: center; }
+      .mobile-home-bottom { display: block; }
+    }
   </style>
 </head>
 
@@ -202,6 +265,16 @@
     </a>
   </div>
 </header>
+  <nav class="mobile-nav" id="mobileNav">
+    <a href="/">Home</a>
+    <a href="/architecture.html">Architecture</a>
+    <a href="/security-architecture.html">Security</a>
+    <a href="/products.html">Products</a>
+    <a href="/roadmap.html">Roadmap</a>
+    <a href="/privacy.html">Privacy</a>
+    <a href="/terms.html">Terms</a>
+  </nav>
+
 
 <main>
   <div class="page-header">
@@ -253,206 +326,31 @@
           </div>
         </div>
 
-        <!-- ── Alpha milestone ───────────────────────────────────────── -->
-        <div class="gantt-row gantt-row-ms">
+        <!-- ── Business Milestones row ─────────────────────────────────── -->
+        <div class="gantt-row gantt-row-biz">
           <div class="gantt-row-label">
-            <span class="gantt-row-id">M-002</span>
-            <span class="gantt-row-name">Alpha Launch</span>
+            <span class="gantt-row-id">BIZ</span>
+            <span class="gantt-row-name">Business Milestones</span>
           </div>
-          <div class="gantt-planned yes">Yes</div>
-          <div class="gantt-track">
-            <div class="gantt-bar gb-alpha" style="left:0%;width:20%"></div>
-            <div class="gantt-milestone gm-m002" style="left:20%"></div>
+          <div class="gantt-planned" style="color:#fff;">—</div>
+          <div class="gantt-track" style="position:relative;">
+            <div class="gantt-milestone" style="left:10.6%; background:var(--teal); border-color:var(--teal);"></div>
+            <div class="gantt-biz-label" style="left:10.6%; color:var(--teal);">Alpha launch<br>Apr 30</div>
+            <div class="gantt-milestone" style="left:21.9%; background:#7c3aed; border-color:#7c3aed;"></div>
+            <div class="gantt-biz-label" style="left:21.9%; color:#7c3aed;">Discuss Care Beta Sprint 1<br>May 31</div>
+            <div class="gantt-milestone" style="left:44.2%; background:#d97706; border-color:#d97706;"></div>
+            <div class="gantt-biz-label" style="left:44.2%; color:#d97706;">Seed funding close<br>Jul 31</div>
+            <div class="gantt-milestone" style="left:53.3%; background:#059669; border-color:#059669;"></div>
+            <div class="gantt-biz-label" style="left:53.3%; color:#059669;">Production launch<br>Aug 25</div>
+            <div class="gantt-milestone" style="left:62.8%; background:#7c3aed; border-color:#7c3aed;"></div>
+            <div class="gantt-biz-label" style="left:62.8%; color:#7c3aed;">Beta launch<br>Sep 20</div>
+            <div class="gantt-milestone" style="left:77.7%; background:#2563eb; border-color:#2563eb;"></div>
+            <div class="gantt-biz-label" style="left:77.7%; color:#2563eb;">Native mobile apps — Apple App Store and Google Play<br>Oct 31</div>
           </div>
         </div>
 
-        <!-- M-001: Data loading  Mar 1 → Mar 24  (0% → 7.7%) -->
-        <div class="gantt-row gantt-row-child">
-          <div class="gantt-row-label">
-            <span class="gantt-row-id">M-001</span>
-            <span class="gantt-row-name">Data loading complete</span>
-          </div>
-          <div class="gantt-planned yes">Yes</div>
-          <div class="gantt-track">
-            <div class="gantt-bar gb-alpha" style="left:0%;width:7.7%"></div>
-            <div class="gantt-milestone gm-m001" style="left:7.7%"></div>
-          </div>
-        </div>
-
-        <!-- RESEARCH-002: ICD-10 agent  Apr  (10% → 20%) -->
-        <div class="gantt-row gantt-row-child">
-          <div class="gantt-row-label">
-            <span class="gantt-row-id">RESEARCH-002</span>
-            <span class="gantt-row-name">ICD-10 → specialty agent</span>
-          </div>
-          <div class="gantt-planned yes">Yes</div>
-          <div class="gantt-track">
-            <div class="gantt-bar gb-alpha" style="left:10%;width:10%"></div>
-          </div>
-        </div>
-
-        <!-- INFRA-002: Cluster manager  now–Apr 20  (7% → 16.7%) -->
-        <div class="gantt-row gantt-row-child">
-          <div class="gantt-row-label">
-            <span class="gantt-row-id">INFRA-002</span>
-            <span class="gantt-row-name">Cluster manager agent</span>
-          </div>
-          <div class="gantt-planned yes">Yes</div>
-          <div class="gantt-track">
-            <div class="gantt-bar gb-alpha" style="left:7%;width:9.7%"></div>
-          </div>
-        </div>
-
-        <!-- INFRA-003: UX → Azure  now–Apr 25  (7% → 18.3%) -->
-        <div class="gantt-row gantt-row-child">
-          <div class="gantt-row-label">
-            <span class="gantt-row-id">INFRA-003</span>
-            <span class="gantt-row-name">Chat UI → Azure</span>
-          </div>
-          <div class="gantt-planned yes">Yes</div>
-          <div class="gantt-track">
-            <div class="gantt-bar gb-alpha" style="left:7%;width:11.3%"></div>
-          </div>
-        </div>
-
-        <!-- INFRA-007: Orchestrator versioning  now → Apr 25  (7% → 18.3%) -->
-        <div class="gantt-row gantt-row-child">
-          <div class="gantt-row-label">
-            <span class="gantt-row-id">INFRA-007</span>
-            <span class="gantt-row-name">Orchestrator versioning</span>
-          </div>
-          <div class="gantt-planned yes">Yes</div>
-          <div class="gantt-track">
-            <div class="gantt-bar gb-alpha" style="left:7%;width:11.3%"></div>
-          </div>
-        </div>
-
-        <!-- ── Beta milestone ─────────────────────────────────────────── -->
-        <!-- Beta = 20 days after farthest deliverable (INFRA-004 Aug 31) = Sep 20 = 67% -->
-        <div class="gantt-row gantt-row-ms-beta">
-          <div class="gantt-row-label">
-            <span class="gantt-row-id">M-003</span>
-            <span class="gantt-row-name">Beta Launch</span>
-          </div>
-          <div class="gantt-planned yes">Yes</div>
-          <div class="gantt-track">
-            <div class="gantt-bar gb-future" style="left:20%;width:47%"></div>
-            <div class="gantt-milestone gm-m003" style="left:67%"></div>
-          </div>
-        </div>
-
-        <!-- INFRA-001: CopyToRuntime  May–Jun  (20% → 30%) -->
-        <div class="gantt-row gantt-row-child-beta">
-          <div class="gantt-row-label">
-            <span class="gantt-row-id">INFRA-001</span>
-            <span class="gantt-row-name">CopyToRuntime swap</span>
-          </div>
-          <div class="gantt-planned yes">Yes</div>
-          <div class="gantt-track">
-            <div class="gantt-bar gb-infra" style="left:20%;width:10%"></div>
-          </div>
-        </div>
-
-        <!-- INFRA-005: Production MongoDB  Apr 30–Jun 1  (20% → 30.3%) -->
-        <div class="gantt-row gantt-row-child-beta">
-          <div class="gantt-row-label">
-            <span class="gantt-row-id">INFRA-005</span>
-            <span class="gantt-row-name">Production MongoDB cluster</span>
-          </div>
-          <div class="gantt-planned yes">Yes</div>
-          <div class="gantt-track">
-            <div class="gantt-bar gb-infra" style="left:20%;width:10.3%"></div>
-          </div>
-        </div>
-
-        <!-- INFRA-004: Enterprise security  May–Aug  (20% → 50%) -->
-        <div class="gantt-row gantt-row-child-beta">
-          <div class="gantt-row-label">
-            <span class="gantt-row-id">INFRA-004</span>
-            <span class="gantt-row-name">Enterprise security hardening</span>
-          </div>
-          <div class="gantt-planned yes">Yes</div>
-          <div class="gantt-track">
-            <div class="gantt-bar gb-security" style="left:20%;width:30%"></div>
-          </div>
-        </div>
-
-        <!-- INFRA-008: Pipeline management agent  Jun  (30% → 40%) -->
-        <div class="gantt-row gantt-row-child-beta">
-          <div class="gantt-row-label">
-            <span class="gantt-row-id">INFRA-008</span>
-            <span class="gantt-row-name">Pipeline mgmt agent</span>
-          </div>
-          <div class="gantt-planned yes">Yes</div>
-          <div class="gantt-track">
-            <div class="gantt-bar gb-infra" style="left:30%;width:10%"></div>
-          </div>
-        </div>
-
-        <!-- ── Future ─────────────────────────────────────────────────── -->
-        <!-- RESEARCH-001: Multi-location payer data  Apr 7–Jun 2  (12% → 31%) -->
-        <div class="gantt-row">
-          <div class="gantt-row-label">
-            <span class="gantt-row-id">RESEARCH-001</span>
-            <span class="gantt-row-name">Multi-location payer data</span>
-          </div>
-          <div class="gantt-planned yes">Yes</div>
-          <div class="gantt-track">
-            <div class="gantt-bar gb-infra" style="left:12%;width:19%"></div>
-          </div>
-        </div>
-
-        <!-- FUTURE-001: Auth — no committed date -->
-        <div class="gantt-row">
-          <div class="gantt-row-label">
-            <span class="gantt-row-id">FUTURE-001</span>
-            <span class="gantt-row-name">User authentication</span>
-          </div>
-          <div class="gantt-planned no">No</div>
-          <div class="gantt-track"></div>
-        </div>
-
-        <!-- FUTURE-002: Data deletion — no committed date -->
-        <div class="gantt-row">
-          <div class="gantt-row-label">
-            <span class="gantt-row-id">FUTURE-002</span>
-            <span class="gantt-row-name">Data deletion agent</span>
-          </div>
-          <div class="gantt-planned no">No</div>
-          <div class="gantt-track"></div>
-        </div>
-
-        <!-- FUTURE-003: FHIR — no committed date -->
-        <div class="gantt-row">
-          <div class="gantt-row-label">
-            <span class="gantt-row-id">FUTURE-003</span>
-            <span class="gantt-row-name">FHIR / Epic EMR</span>
-          </div>
-          <div class="gantt-planned no">No</div>
-          <div class="gantt-track"></div>
-        </div>
-
-        <!-- INFRA-009: API protection — no committed date -->
-        <div class="gantt-row">
-          <div class="gantt-row-label">
-            <span class="gantt-row-id">INFRA-009</span>
-            <span class="gantt-row-name">API protection &amp; abuse prevention</span>
-          </div>
-          <div class="gantt-planned no">No</div>
-          <div class="gantt-track"></div>
-        </div>
-
-      </div><!-- /gantt-grid -->
-
-      <div class="gantt-legend">
-        <div class="gl-item"><div class="gl-dot gl-alpha"></div> Pre-Alpha &amp; Alpha deliverables</div>
-        <div class="gl-item"><div class="gl-dot gl-research"></div> Research agents</div>
-        <div class="gl-item"><div class="gl-dot gl-infra"></div> Infrastructure (post-Alpha)</div>
-        <div class="gl-item"><div class="gl-dot gl-security"></div> Enterprise security (pre-sales)</div>
-        <div class="gl-item"><div class="gl-dot gl-future"></div> Future phase</div>
-        <div class="gl-item"><div class="gl-today-line"></div> Today (Mar 23)</div>
-      </div>
-    </div><!-- /gantt-wrap -->
+        
+</div><!-- /gantt-wrap -->
 
     <!-- Milestones -->
     <h2>Milestones</h2>
@@ -530,7 +428,7 @@
         <span class="item-id">M-003</span>
         <span class="item-title" style="font-size:1.1rem;">Beta Launch</span>
         <span class="badge" style="background:#7c3aed; color:#fff; border-color:#7c3aed;">Major Milestone</span>
-        <span class="badge" style="background:#f0ebff; color:#5b21b6; border: 1px solid #c4b5fd;">September 20, 2026</span>
+        <span class="badge" style="background:#f0ebff; color:#5b21b6; border: 1px solid #c4b5fd;">August 25, 2026</span>
       </div>
       <p>A hardened, monitored ChatHealthy.ai ready for enterprise evaluation: autonomous pipeline
       management, observability, and security controls in place.</p>
@@ -541,6 +439,68 @@
         <li>VNet integration — storage and Function App on subnet</li>
         <li>Production MongoDB cluster (INFRA-005)</li>
         <li>CopyToRuntime blue-green swap (INFRA-001)</li>
+      </ul>
+    </div>
+
+    <div class="item" style="border-color:#d97706; border-width:2px; background:#fffbeb;">
+      <div class="item-header">
+        <span class="item-id">M-004</span>
+        <span class="item-title" style="font-size:1.1rem;">Seed Funding Close</span>
+        <span class="badge" style="background:#d97706; color:#fff; border-color:#d97706;">Major Milestone</span>
+        <span class="badge" style="background:#fef3c7; color:#92400e; border: 1px solid #fbbf24;">July 31, 2026</span>
+      </div>
+      <!-- INTERNAL: $1.5M seed. DO NOT PUBLISH amount. Brain records have the number. -->
+      <p>Seed funding secured. Enables hiring, infrastructure scaling, multi-state expansion, and enterprise tooling.</p>
+      <ul>
+        <li>Content management GUI for marketing/business founder (CM-001 Phase 2)</li>
+        <li>Marketing founder / content owner hire</li>
+        <li>Enterprise sales tooling and demo environment</li>
+        <li>Multi-state data load — all 50 states (compute + embedding cost)</li>
+        <li>GUI content management tool — CRUD templates, preview, approval workflow</li>
+      </ul>
+    </div>
+
+    <div class="item" style="border-color:#059669; border-width:2px; background:#ecfdf5;">
+      <div class="item-header">
+        <span class="item-id">M-005</span>
+        <span class="item-title" style="font-size:1.1rem;">Production Launch</span>
+        <span class="badge" style="background:#059669; color:#fff; border-color:#059669;">Major Milestone</span>
+        <span class="badge" style="background:#d1fae5; color:#065f46; border: 1px solid #6ee7b7;">November 20, 2026</span>
+      </div>
+      <p>Full production release of ChatHealthy.ai. Consumer-ready platform with all three components live.</p>
+    </div>
+
+    <div class="item" style="border-color:#2563eb; border-width:2px; background:#eff6ff;">
+      <div class="item-header">
+        <span class="item-id">M-006</span>
+        <span class="item-title" style="font-size:1.1rem;">iPhone &amp; Android App Launch</span>
+        <span class="badge" style="background:#2563eb; color:#fff; border-color:#2563eb;">Major Milestone</span>
+        <span class="badge" style="background:#dbeafe; color:#1e40af; border: 1px solid #93c5fd;">December 15, 2026</span>
+      </div>
+      <p>Native mobile apps for iOS and Android. Full platform capability in the consumer's pocket.</p>
+    </div>
+
+    <!-- Post-Alpha Tasks -->
+    <h2>Post-Alpha Deliverables</h2>
+
+    <div class="item">
+      <div class="item-header">
+        <span class="item-id">UX-ABOUT-001</span>
+        <span class="item-title">Unified About Us tool — consolidate about intents</span>
+        <span class="badge badge-open" style="background:#e8f4e8; color:#1a6b1a; border-color:#90c890;">Post-Alpha (1 sprint)</span>
+      </div>
+      <div class="item-meta">
+        <span><strong>Status:</strong> Backlog — scheduled post-Alpha</span>
+      </div>
+      <p>Merge <code>get_skip_snow_context</code> and <code>get_chathealthy_context</code> into a single
+      <strong>About Us</strong> tool backed by extensible content artifacts. Currently two tools sharing
+      one class — should be one tool that routes to any number of about-related content sources
+      (founder, company, team, advisors, investors, press).</p>
+      <ul>
+        <li>Single <code>get_about_context(topic)</code> tool replaces two separate tools</li>
+        <li>Content loaded from brain artifacts or MongoDB (CM-001 path)</li>
+        <li>Extensible: add new topics without new tool registrations</li>
+        <li>One sprint delivery</li>
       </ul>
     </div>
 
@@ -826,7 +786,7 @@
       </ul>
       <p><strong>Requirements:</strong></p>
       <ul>
-        <li>All reads/writes in <code>brain_loop.py</code> and <code>brain_runner.py</code> target MongoDB collections</li>
+        <li>All reads/writes in <code>brain_loop.py</code> target MongoDB collections</li>
         <li>ENV_PREFIX applied to all database names (<code>dev_Brain</code>, <code>prod_Brain</code>)</li>
         <li>Existing assignment field schemas unchanged — no breaking changes to assignment structure</li>
         <li>JSON files removed once MongoDB persistence is verified — no dual writes</li>
@@ -978,7 +938,10 @@
     </button>
   </div>
 
-</main>
+    <div class="mobile-home-bottom">
+      <a href="/">&larr; Back to ChatHealthy.ai</a>
+    </div>
+  </main>
 
 <footer>
   <div class="footer-inner">
@@ -993,5 +956,18 @@
   }
 </script>
 
+  <script>
+    // Hamburger menu
+    (function() {
+      var btn = document.getElementById('menuToggle');
+      var nav = document.getElementById('mobileNav');
+      if (btn && nav) {
+        btn.addEventListener('click', function() {
+          var open = nav.classList.toggle('open');
+          btn.setAttribute('aria-expanded', open);
+        });
+      }
+    })();
+  </script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Copyright © 2026 Skip Snow. All rights reserved.
+  Copyright © 2026 ChatHealthy.ai LLC. All rights reserved.
   Licensed under the FindCare Evaluation License (FEL-1.0).
 
   Coded by Claude Sonnet 4.6 (Anthropic).
@@ -93,6 +93,58 @@
     .footer-copy { font-size: 0.78rem; color: var(--ink-soft); font-style: italic; }
 
     @media print { header, footer { display: none !important; } body { font-size: 11pt; } }
+  
+    /* ── Hamburger button (hidden on desktop) ──────── */
+    .menu-toggle {
+      display: none;
+      margin-left: auto;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 8px;
+      border-radius: var(--radius);
+      color: var(--ink-soft);
+      transition: background 0.15s;
+    }
+    .menu-toggle:hover { background: var(--teal-light); color: var(--teal); }
+    .menu-toggle svg { display: block; width: 22px; height: 22px; }
+
+    .mobile-nav {
+      display: none;
+      flex-direction: column;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px 14px;
+    }
+    .mobile-nav.open { display: flex; }
+    .mobile-nav a {
+      font-size: 0.95rem;
+      color: var(--ink-soft);
+      text-decoration: none;
+      padding: 10px 12px;
+      border-radius: var(--radius);
+      transition: color 0.15s, background 0.15s;
+    }
+    .mobile-nav a:hover { color: var(--teal); background: var(--teal-light); }
+
+    .mobile-home-bottom {
+      display: none;
+      text-align: center;
+      padding: 16px;
+      margin-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+    .mobile-home-bottom a {
+      color: var(--teal);
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 500;
+    }
+
+    @media (max-width: 600px) {
+      .menu-toggle { display: flex; align-items: center; justify-content: center; }
+      .mobile-home-bottom { display: block; }
+    }
   </style>
 </head>
 <body>
@@ -110,6 +162,16 @@
     </a>
   </div>
 </header>
+  <nav class="mobile-nav" id="mobileNav">
+    <a href="/">Home</a>
+    <a href="/architecture.html">Architecture</a>
+    <a href="/security-architecture.html">Security</a>
+    <a href="/products.html">Products</a>
+    <a href="/roadmap.html">Roadmap</a>
+    <a href="/privacy.html">Privacy</a>
+    <a href="/terms.html">Terms</a>
+  </nav>
+
 
 <main>
   <div class="page-header">
@@ -141,10 +203,10 @@
 
     <!-- 2. Pipeline Position -->
     <h2>2. Pipeline Position</h2>
-    <p>Embedding is Step 8 of <code>FullProviderPipeline</code>. It runs after all county enrichment passes complete.</p>
+    <p>Embedding is Step 8 of <code>FindCarePipeline</code>. It runs after all county enrichment passes complete.</p>
     <div class="diagram">
       <div class="diagram-inner">
-        <div class="d-center"><div class="d-box d-box-wide d-box-teal"><strong>FullProviderPipeline</strong><small>Steps 1–8 in sequence &mdash; resumable via start_step</small></div></div>
+        <div class="d-center"><div class="d-box d-box-wide d-box-teal"><strong>FindCarePipeline</strong><small>Steps 1–8 in sequence &mdash; resumable via start_step</small></div></div>
         <div class="d-down">↓ Steps 1–7</div>
         <div class="d-center"><div class="d-box d-box-wide"><strong>Health check, load, county enrichment, NPPES</strong><small>providers_staging populated and fully enriched</small></div></div>
         <div class="d-down">↓ Step 8</div>
@@ -406,7 +468,10 @@ foreign_provider: yes</div>
     </ul>
 
   </div>
-</main>
+    <div class="mobile-home-bottom">
+      <a href="/">&larr; Back to ChatHealthy.ai</a>
+    </div>
+  </main>
 
 <footer>
   <div class="footer-inner">
@@ -414,5 +479,18 @@ foreign_provider: yes</div>
   </div>
 </footer>
 
+  <script>
+    // Hamburger menu
+    (function() {
+      var btn = document.getElementById('menuToggle');
+      var nav = document.getElementById('mobileNav');
+      if (btn && nav) {
+        btn.addEventListener('click', function() {
+          var open = nav.classList.toggle('open');
+          btn.setAttribute('aria-expanded', open);
+        });
+      }
+    })();
+  </script>
 </body>
 </html>
