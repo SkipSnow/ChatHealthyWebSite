@@ -549,6 +549,75 @@
 
 <body>
 
+  <div id="chFatalErrorOverlay" style="display:none;position:fixed;inset:0;z-index:2147483647;background:#fff;overflow:auto;padding:40px 20px;box-sizing:border-box;font-family:system-ui,-apple-system,sans-serif;">
+    <div style="max-width:680px;margin:0 auto;text-align:center;color:#111;">
+      <div style="font-size:38px;font-weight:700;color:#dc2626;margin:60px 0 40px 0;line-height:1.25;">HTTP 503: Fatal Error, this service is not available.</div>
+      <div style="font-size:16px;line-height:1.7;color:#374151;">
+        <div style="margin:8px 0;"><a id="chFatalHomeLink" href="" style="color:#0b7a75;text-decoration:underline;"></a></div>
+        <div style="margin:8px 0;">If you get this error repeatedly and wish to call our team, please call Skip Snow @ <a href="tel:+16464088999" style="color:#0b7a75;">646 408 8999</a></div>
+        <div style="margin:8px 0;">If you prefer email skip's email is: <a href="mailto:skip@chatHealthy.ai" style="color:#0b7a75;">skip@chatHealthy.ai</a></div>
+        <div id="chFatalErrorMessage" style="margin:18px auto;font-size:13px;color:#6b7280;word-break:break-word;max-width:600px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;"></div>
+        <div style="margin:8px 0;">we apologize for this problem.</div>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function() {
+      window.chFatalError = function(message) {
+        try {
+          var overlay = document.getElementById('chFatalErrorOverlay');
+          if (!overlay) return;
+          var host = window.location.hostname;
+          var homeUrl;
+          if (host === 'localhost' || host === '127.0.0.1') {
+            homeUrl = window.location.protocol + '//' + host + (window.location.port ? ':' + window.location.port : '');
+          } else if (host.indexOf('dev.') === 0) {
+            homeUrl = 'https://dev.chathealthy.ai';
+          } else if (host.indexOf('qa.') === 0) {
+            homeUrl = 'https://qa.chathealthy.ai';
+          } else {
+            homeUrl = 'https://chathealthy.ai';
+          }
+          var link = document.getElementById('chFatalHomeLink');
+          if (link) { link.href = homeUrl; link.textContent = homeUrl; }
+          var msgEl = document.getElementById('chFatalErrorMessage');
+          if (msgEl) msgEl.textContent = String(message == null ? '' : message);
+          overlay.style.display = 'block';
+          overlay.style.zIndex = '2147483647';
+        } catch (_) {}
+      };
+      window.addEventListener('error', function(e) {
+        var routine = (e && e.filename) ? (e.filename + ':' + (e.lineno || '?')) : 'unknown';
+        var msg = (e && e.message) ? e.message : 'unknown error';
+        window.chFatalError('JS routine {' + routine + ' failed}: ' + msg);
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        var reason = e && e.reason;
+        var msg = reason ? (reason.message || String(reason)) : 'unhandled promise rejection';
+        window.chFatalError('JS routine {promise failed}: ' + msg);
+      });
+      var _origFetch = window.fetch;
+      window.fetch = function() {
+        return _origFetch.apply(this, arguments).then(function(resp) {
+          if (resp && resp.status === 503) {
+            resp.clone().text().then(function(body) {
+              var msg;
+              try {
+                var parsed = JSON.parse(body);
+                var detail = parsed && parsed.detail;
+                if (detail && typeof detail === 'object' && detail.message) msg = detail.message;
+                else if (typeof detail === 'string') msg = detail;
+                else msg = body;
+              } catch (_) { msg = body; }
+              window.chFatalError(String(msg || ''));
+            }).catch(function() { window.chFatalError(''); });
+          }
+          return resp;
+        });
+      };
+    })();
+  </script>
+
   <!-- ══ HEADER ══════════════════════════════════════ -->
   <header>
     <div class="header-inner">
@@ -568,7 +637,6 @@
       <nav class="header-nav">
         <button type="button" class="nav-coming-soon" data-tip="You are already home">Home</button>
         <button type="button" onclick="openPanel('products.html','Products &amp; Services')">Products &amp; Services</button>
-        <button type="button" id="qaReportNav" style="display:none" onclick="openQAReport()">QA Report</button>
       </nav>
 
       <!-- Hamburger (visible on mobile only) -->
@@ -635,7 +703,7 @@
       window._envServiceUrls = (function() {
         if (isLocal) {
           return {
-            findcare: '',  // same-origin (website server proxies /health to :7860)
+            findcare:     'https://localhost:7860',
             evaluatecare: 'https://localhost:8001',
             sharedservices: 'https://localhost:8002',
           };
@@ -653,17 +721,30 @@
       // banner-only-from-FindCare bug. Service argument is one of:
       //   'findcare' | 'evaluatecare' | 'sharedservices'
       window.refreshBanner = function(serviceKey) {
-        var root = (window._envServiceUrls || {})[serviceKey || 'findcare'] || '';
+        var key = serviceKey || 'findcare';
+        var root = (window._envServiceUrls || {})[key] || '';
         var healthUrl = root + '/health';
-        fetch(healthUrl).then(function(r) { return r.json(); }).then(function(d) {
+        function paintBanner(version, framework, build) {
           banner.innerHTML = '<span style="margin-right:12px;">' + env + '</span>'
-            + '<span style="margin-right:12px;">Version: ' + (d.version || '?') + '</span>'
-            + '<span style="margin-right:12px;">Framework: ' + (d.framework || '?') + '</span>'
-            + '<span style="margin-right:12px;">Build: ' + (d.build || '?') + '</span>'
-            + '<span style="margin-right:12px;font-size:11px;opacity:0.85;">[' + (serviceKey || 'findcare') + ']</span>'
+            + '<span style="margin-right:12px;">Version: ' + (version || '?') + '</span>'
+            + '<span style="margin-right:12px;">Framework: ' + (framework || '?') + '</span>'
+            + '<span style="margin-right:12px;">Build: ' + (build || '?') + '</span>'
+            + '<span style="margin-right:12px;font-size:11px;opacity:0.85;">[' + key + ']</span>'
             + '<span id="serviceButtons"></span>';
           if (typeof window.renderBannerButtons === 'function') window.renderBannerButtons();
-        }).catch(function() {});
+        }
+        // V11 S-005-REQ-B-002: bracket MUST reflect the new owner on
+        // ownership transfer. Old code only updated the bracket on /health
+        // fetch SUCCESS — when the fetch failed/timed out, the bracket
+        // stayed showing the PREVIOUS owner while the button gray-state
+        // (renderBannerButtons, called synchronously from the transition
+        // handler) already reflected the NEW owner. Paint synchronously
+        // first so bracket and buttons stay atomically aligned, then
+        // overlay real values when /health resolves.
+        paintBanner('?', '?', '?');
+        fetch(healthUrl, { method: 'POST' }).then(function(r) { return r.json(); }).then(function(d) {
+          paintBanner(d.version, d.framework, d.build);
+        }).catch(function() { window.chFatalError(''); });
       };
 
       // Initial paint: FindCare owns the page on first load.
@@ -760,15 +841,24 @@
         src = 'https://' + org + '-' + spaceName + '.hf.space';
       }
 
-      // QA Report + Shared Services — dev/local only
-      if (env !== 'prod') {
-        document.getElementById('qaReportNav').style.display = '';
-      }
-      // sharedServicesNav button lives inside #envBanner — visible when banner is visible
-      // No separate show/hide needed (BUG-UX-021)
       window._hfBaseUrl = src;
-      window.openQAReport = function() {
-        openPanel(src + '/qa-report', 'QA Report — v0.1.4');
+
+      // rightPanel hosts two persistent sub-divs so providers/splash content
+      // (written by gui:evaluate-result, gui:shared-result, etc.) and the
+      // security panel (written by refreshTokenPanels) can coexist without
+      // overwriting each other.
+      window.ensureRightPanelStructure = function() {
+        var rightPanel = document.getElementById('rightPanel');
+        if (!rightPanel) return;
+        if (!document.getElementById('rightContent') || !document.getElementById('rightSecurity')) {
+          rightPanel.style.alignItems = 'stretch';
+          rightPanel.style.justifyContent = 'flex-start';
+          rightPanel.style.flexDirection = 'column';
+          rightPanel.style.overflow = 'auto';
+          rightPanel.innerHTML =
+              '<div id="rightContent" style="display:flex;flex-direction:column;flex:0 1 auto;"></div>'
+            + '<div id="rightSecurity" style="flex:0 0 auto;"></div>';
+        }
       };
 
       // SEC-HTTPS-001-REQ-021/022: refresh BOTH token panels on every
@@ -787,59 +877,66 @@
         var sharedUrl = urls.sharedservices || 'https://localhost:8002';
         var evalUrl   = urls.evaluatecare   || 'https://localhost:8001';
 
-        function mintAndVerify(minterUrl, verifierUrl) {
-          return fetch(minterUrl + '/session')
-            .then(function(r) { return r.json(); })
-            .then(function(token) {
-              return fetch(verifierUrl + '/verify-token', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({session_token: token})
-              });
-            })
-            .then(function(r) { return r.json(); });
-        }
-
-        // LEFT — FC mints, SS verifies. Always.
-        mintAndVerify(apiBase, sharedUrl)
-          .then(function(result) {
-            if (!result || !result.session_token) return;
-            var sessionEl = document.getElementById('guiSessionCell') || document.getElementById('guiSessionId');
-            if (sessionEl) sessionEl.innerHTML = window.buildTokenDisplayHtml(result.session_token);
-          })
-          .catch(function(e) { console.error('LEFT panel refresh failed:', e); });
-
-        // RIGHT — owner mints, independent verifier checks signature.
-        var minterUrl, verifierUrl, color, label, bg;
+        // FC always mints; the COLD service (current owner, or an independent
+        // peer when FC owns) verifies. Browser → cold service direct per V11
+        // EPIC-002-F-001-S-012 "browser must call cold-button service directly
+        // for verify-token (no FindCare proxy)".
+        // Both LEFT and RIGHT panels render the SAME verification result so
+        // their nonces match (smoke asserts cross-panel nonce equality).
+        var coldUrl, color, label, bg;
         if (owner === 'sharedservices') {
-          minterUrl = sharedUrl; verifierUrl = apiBase;
-          color = '#0b7a75'; label = 'Shared Services'; bg = '#f0fffe';
+          coldUrl = sharedUrl; color = '#0b7a75'; label = 'Shared Services'; bg = '#f0fffe';
         } else if (owner === 'evaluatecare') {
-          minterUrl = evalUrl;   verifierUrl = apiBase;
-          color = '#d97706'; label = 'EvaluateCare'; bg = '#fff7ed';
+          coldUrl = evalUrl;   color = '#d97706'; label = 'EvaluateCare';   bg = '#fff7ed';
         } else {
-          // findcare owns
-          minterUrl = apiBase;   verifierUrl = sharedUrl;
-          color = '#0b7a75'; label = 'FindCare'; bg = '#f0fffe';
+          coldUrl = sharedUrl; color = '#0b7a75'; label = 'FindCare';       bg = '#f0fffe';
         }
 
-        mintAndVerify(minterUrl, verifierUrl)
-          .then(function(result) {
-            var rightPanel = document.getElementById('rightPanel');
-            if (!rightPanel || !result || !result.session_token) return;
-            var st = result.session_token;
-            rightPanel.style.alignItems = 'stretch';
-            rightPanel.style.justifyContent = 'flex-start';
-            rightPanel.style.flexDirection = 'column';
-            rightPanel.style.overflow = 'auto';
-            rightPanel.innerHTML =
-                '<div style="padding:8px 10px;border-bottom:2px solid ' + color + ';background:' + bg + ';">'
-              + '<div style="font-size:11px;font-weight:700;color:' + color + ';text-transform:uppercase;">' + label + '</div>'
-              + '<div style="font-size:9px;color:#6b7280;margin-top:2px;">Mutual authentication test</div>'
-              + '</div>'
-              + window.buildTokenDisplayHtml(st);
+        fetch(apiBase + '/session', { method: 'POST' })
+          .then(function(r) {
+            if (!r.ok) throw new Error('FindCare /session HTTP ' + r.status);
+            return r.json();
           })
-          .catch(function(e) { console.error('RIGHT panel refresh failed (owner=' + owner + '):', e); });
+          .then(function(token) {
+            return fetch(coldUrl + '/verify-token', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({session_token: token})
+            }).then(function(r) {
+              if (!r.ok) throw new Error(coldUrl + ' /verify-token HTTP ' + r.status);
+              return r.json();
+            });
+          })
+          .then(function(result) {
+            if (!result || !result.session_token) {
+              throw new Error('verify-token response missing session_token');
+            }
+            var st = result.session_token;
+            if (owner === 'findcare') {
+              var leftCell = document.getElementById('guiSessionCell') || document.getElementById('guiSessionId');
+              if (!leftCell) {
+                var leftPanelOuter = document.getElementById('leftPanel');
+                if (leftPanelOuter) {
+                  leftPanelOuter.insertAdjacentHTML('beforeend',
+                    '<div id="guiSessionId" style="padding:4px 8px;border-top:1px solid #e5e7eb;"></div>');
+                  leftCell = document.getElementById('guiSessionId');
+                }
+              }
+              if (leftCell) leftCell.innerHTML = window.buildTokenDisplayHtml(st);
+            } else {
+              window.ensureRightPanelStructure();
+              var sec = document.getElementById('rightSecurity');
+              if (sec) {
+                sec.innerHTML =
+                    '<div style="padding:8px 10px;border-bottom:2px solid ' + color + ';background:' + bg + ';">'
+                  + '<div style="font-size:11px;font-weight:700;color:' + color + ';text-transform:uppercase;">' + label + '</div>'
+                  + '<div style="font-size:9px;color:#6b7280;margin-top:2px;">Mutual authentication test</div>'
+                  + '</div>'
+                  + window.buildTokenDisplayHtml(st);
+              }
+            }
+          })
+          .catch(function() { window.chFatalError(''); });
       };
       // DEVOPS-BANNER-B006: 3-button banner with hot/cold states.
       // The service that owns the page renders cold (disabled + tooltip).
@@ -878,12 +975,22 @@
         // DEVOPS-BANNER-B006: banner-initiated handoff to EvaluateCare.
         // Mirrors openSharedServices but hits /evaluate/* via FindCare proxy.
         window._pageOwner = 'evaluatecare';
+        // Clear any prior service's content from the right panel content
+        // sub-div so we don't show, e.g., a stale "SHARED SERVICES" header
+        // while the user is now in EvaluateCare. #rightSecurity gets
+        // refreshed by refreshTokenPanels below.
+        window.ensureRightPanelStructure();
+        var _rc = document.getElementById('rightContent');
+        if (_rc) _rc.innerHTML = '';
         if (typeof window.renderBannerButtons === 'function') window.renderBannerButtons();
         // DEVOPS-BANNER-B007: banner build/version reflect new owner's /health.
         if (typeof window.refreshBanner === 'function') window.refreshBanner('evaluatecare');
         var chatFrame = document.getElementById('coreChatFrame');
-        var apiBase = window._hfBaseUrl || '';
-        fetch(apiBase + '/evaluate/splash')
+        // Splash content comes from the owning service directly (V11
+        // S-005-REQ-B-004 "served by the HuggingFace server that owns
+        // the content"). FindCare is no longer a proxy.
+        var evalcareUrl = (window._envServiceUrls || {}).evaluatecare || '';
+        fetch(evalcareUrl + '/splash', { method: 'POST' })
           .then(function(r) { return r.json(); })
           .then(function(d) {
             chatFrame.style.display = 'none';
@@ -900,7 +1007,7 @@
             splashDiv.style.display = 'flex';
             splashDiv.innerHTML = d.html || '';
           })
-          .catch(function() {});
+          .catch(function() { window.chFatalError(''); });
         // SEC-HTTPS-001-REQ-021: token MUST come from page-owning service.
         // EvaluateCare mints with evalcare.key; FindCare verifies with evalcare.crt.
         // refreshTokenPanels also rotates the LEFT panel (FC /session) per REQ-022.
@@ -913,12 +1020,16 @@
         // Always run the return flow so the UI resets even when pageOwner
         // is already findcare (covers stale-results cleanup).
         window._pageOwner = 'findcare';
+        // Clear stale prior-service content from #rightContent.
+        window.ensureRightPanelStructure();
+        var _rc = document.getElementById('rightContent');
+        if (_rc) _rc.innerHTML = '';
         if (typeof window.renderBannerButtons === 'function') window.renderBannerButtons();
         // DEVOPS-BANNER-B007: banner build/version reflect new owner's /health.
         if (typeof window.refreshBanner === 'function') window.refreshBanner('findcare');
-        fetch(apiBase + '/transfer/to-findcare', { method: 'POST' })
+        fetch(((window._envServiceUrls || {}).evaluatecare || '') + '/transfer/to-findcare', { method: 'POST' })
           .then(function(r) { return r.json(); })
-          .catch(function() { return {}; })
+          .catch(function() { window.chFatalError(''); return {}; })
           .then(function() {
             var ecSplash = document.getElementById('evalcareSplash');
             if (ecSplash) ecSplash.style.display = 'none';
@@ -935,17 +1046,24 @@
       window.openSharedServices = function() {
         // Transfer control to SharedServices (mirrors EvaluateCare pattern)
         window._pageOwner = 'sharedservices';
+        // Clear stale prior-service content (e.g., EvaluateCare's orange
+        // "EVALUATECARE 2 providers" header) from #rightContent so the
+        // right panel reflects the current owner, not the previous one.
+        window.ensureRightPanelStructure();
+        var _rc = document.getElementById('rightContent');
+        if (_rc) _rc.innerHTML = '';
         if (typeof window.renderBannerButtons === 'function') window.renderBannerButtons();
         // DEVOPS-BANNER-B007: banner build/version reflect new owner's /health.
         if (typeof window.refreshBanner === 'function') window.refreshBanner('sharedservices');
         var chatFrame = document.getElementById('coreChatFrame');
-        var apiBase = src;
 
         // Get session token from left panel for mutual auth verification
         var sessionEl = document.getElementById('guiSessionId');
         var sessionToken = sessionEl ? sessionEl.textContent : '';
 
-        fetch(apiBase + '/shared/splash')
+        // Splash content from the owning service directly (V11 S-005-REQ-B-004).
+        var sharedUrl = (window._envServiceUrls || {}).sharedservices || '';
+        fetch(sharedUrl + '/splash', { method: 'POST' })
           .then(function(r) { return r.json(); })
           .then(function(d) {
             chatFrame.style.display = 'none';
@@ -963,19 +1081,7 @@
             splashDiv.style.display = 'flex';
             splashDiv.innerHTML = d.html || '';
           })
-          .catch(function() {
-            chatFrame.style.display = 'none';
-            var centerArea = chatFrame.parentElement;
-            var splashDiv = document.getElementById('sharedSplash');
-            if (!splashDiv) {
-              splashDiv = document.createElement('div');
-              splashDiv.id = 'sharedSplash';
-              splashDiv.style.cssText = 'flex:1;display:flex;align-items:center;justify-content:center;background:#fff;';
-              centerArea.appendChild(splashDiv);
-            }
-            splashDiv.style.display = 'flex';
-            splashDiv.innerHTML = '<div style="text-align:center;padding:20px;color:#6b7280;">Shared Services unavailable</div>';
-          });
+          .catch(function() { window.chFatalError(''); });
 
         // SEC-HTTPS-001-REQ-021: token MUST come from page-owning service.
         // SharedServices mints with shared.key; FindCare verifies with shared.crt.
@@ -1018,21 +1124,25 @@
         // EPIC-002-F-001-S-012-REQ-B-009 — Env + PST Time rows.
         // Env comes from the website's environment label (set during banner init).
         var envLabel = window._envLabel || 'UNKNOWN';
-        // Time: parse ISO created_at (or fall back to current); render in America/Los_Angeles.
-        var ts;
-        try {
-            ts = st.created_at ? new Date(st.created_at) : new Date();
-            if (isNaN(ts.getTime())) ts = new Date();
-        } catch (e) { ts = new Date(); }
-        var pstTime;
-        try {
-            pstTime = ts.toLocaleString('en-US', {
-                timeZone: 'America/Los_Angeles',
-                year: 'numeric', month: '2-digit', day: '2-digit',
-                hour: '2-digit', minute: '2-digit', second: '2-digit',
-                hour12: false
-            });
-        } catch (e) { pstTime = ts.toISOString(); }
+        // Time: parse ISO created_at from the server. NO FALLBACK to
+        // browser time — if the server forgot to send created_at, render
+        // "?" so the operator sees the missing field instead of being
+        // misled by a browser-time substitute. The browser clock is not
+        // a trusted source for security-token display.
+        var pstTime = '?';
+        if (st.created_at) {
+            var ts = new Date(st.created_at);
+            if (!isNaN(ts.getTime())) {
+                try {
+                    pstTime = ts.toLocaleString('en-US', {
+                        timeZone: 'America/Los_Angeles',
+                        year: 'numeric', month: '2-digit', day: '2-digit',
+                        hour: '2-digit', minute: '2-digit', second: '2-digit',
+                        hour12: false,
+                    });
+                } catch (e) { pstTime = '?'; }
+            }
+        }
         return '<div style="padding:8px 10px;border-top:2px solid #0b7a75;background:#f0fffe;margin-top:4px;">'
           + '<div style="font-size:10px;font-weight:700;color:#0b7a75;text-transform:uppercase;">Session Verification</div>'
           + '<div style="font-size:9px;color:#374151;margin-top:4px;word-break:break-all;">'
@@ -1042,8 +1152,10 @@
           + '<div style="font-size:9px;color:#374151;margin-top:2px;word-break:break-all;">'
           + '<b style="color:#0b7a75;">GUID:</b> <span style="color:#0b7a75;">' + guid + '</span></div>'
           + '<div style="font-size:9px;color:#374151;margin-top:2px;">'
-          + '<b>Server, serving security token:</b> ' + (st.origin || 'unknown')
+          + '<b>Origin:</b> ' + (st.origin || 'unknown')
           + ' &middot; <b>Verified:</b> <span style="color:' + (st.verified ? '#059669' : '#dc2626') + ';font-weight:700;">' + (st.verified ? 'YES ✓' : 'FAILED ✗') + '</span></div>'
+          + '<div style="font-size:9px;color:#374151;margin-top:2px;">'
+          + '<b>Server, serving security token:</b> ' + (st.origin || 'unknown') + '</div>'
           + '<div style="font-size:9px;color:#374151;margin-top:2px;">'
           + '<b>Env:</b> <span style="color:#7c3aed;font-weight:700;">' + envLabel + '</span></div>'
           + '<div style="font-size:9px;color:#374151;margin-top:2px;">'
@@ -1059,6 +1171,15 @@
         if (!msg || typeof msg !== 'object') return;
 
         console.log('[ControlFrame] Received message:', msg.type);
+        // EPIC-008-F-011-S-001-REQ-B-001: full-screen fatal-error splash.
+        // Iframe forwards backend error strings via postMessage; the wrapper
+        // owns the rendering surface (per the requirement: "index.html is to
+        // display the following"). The chFatalError() helper above renders
+        // the spec-mandated 5-line layout including the error text from the API.
+        if (msg.type === 'gui:fatal-error') {
+          window.chFatalError(String(msg.message == null ? '' : msg.message));
+          return;
+        }
         if (msg.type === 'gui:render') {
           frame.innerHTML = msg.html || '';
           var actions = frame.querySelectorAll('[data-gui-action]');
@@ -1154,14 +1275,18 @@
                 // Hot click — send to evaluate
                 // Transfer control to EvaluateCare
                 window._pageOwner = 'evaluatecare';
+                // Clear stale prior-service content from #rightContent;
+                // gui:evaluate-result will repaint with EvalCare providers.
+                window.ensureRightPanelStructure();
+                var _rc = document.getElementById('rightContent');
+                if (_rc) _rc.innerHTML = '';
                 if (typeof window.renderBannerButtons === 'function') window.renderBannerButtons();
                 // DEVOPS-BANNER-B007: banner build/version reflect new owner's /health.
                 if (typeof window.refreshBanner === 'function') window.refreshBanner('evaluatecare');
-                var chatSrc = chatFrame.src || '';
-                var apiBase = chatSrc.replace(/\/static\/.*$/, '').replace(/\/$/, '');
-                if (!apiBase) apiBase = '';
-                // Fetch splash from EvaluateCare service (via FindCare proxy)
-                fetch(apiBase + '/evaluate/splash')
+                // Splash content from the owning service directly (V11
+                // S-005-REQ-B-004). FindCare is no longer a proxy.
+                var evalcareUrl = (window._envServiceUrls || {}).evaluatecare || '';
+                fetch(evalcareUrl + '/splash', { method: 'POST' })
                   .then(function(r) { return r.json(); })
                   .then(function(d) {
                     // Paint EvaluateCare splash in CENTER panel (iframe area)
@@ -1177,20 +1302,12 @@
                     splashDiv.style.display = 'flex';
                     splashDiv.innerHTML = d.html || '';
                   })
-                  .catch(function() {
-                    chatFrame.style.display = 'none';
-                    var centerArea = chatFrame.parentElement;
-                    var splashDiv = document.getElementById('evalcareSplash');
-                    if (!splashDiv) {
-                      splashDiv = document.createElement('div');
-                      splashDiv.id = 'evalcareSplash';
-                      splashDiv.style.cssText = 'flex:1;display:flex;align-items:center;justify-content:center;background:#fff;';
-                      centerArea.appendChild(splashDiv);
-                    }
-                    splashDiv.style.display = 'flex';
-                    splashDiv.innerHTML = '<div style="text-align:center;padding:20px;color:#6b7280;">EvaluateCare unavailable</div>';
-                  });
+                  .catch(function() { window.chFatalError(''); });
                 chatFrame.contentWindow.postMessage({ type: 'gui:event', action: 'evaluate-providers' }, '*');
+                // SEC-HTTPS-001-REQ-021: refresh RIGHT panel via direct
+                // browser → cold service /verify-token (matches the banner
+                // EvaluateCare button path).
+                window.refreshTokenPanels('evaluatecare');
               }
             });
           }
@@ -1233,7 +1350,27 @@
               if (el.getAttribute('data-gui-action') === 'filter-apply') {
                 el.addEventListener('click', function() {
                   // If EvaluateCare or SharedServices owns the page, transfer back to FindCare
+                  // AND apply the filter (per EPIC-006-F-001 lines 3078, 3216:
+                  // Apply Filter MUST clear unpicked providers and re-query DB
+                  // — control transfer alone is not enough; the filter must
+                  // actually be applied so providers re-render in the iframe).
                   if (window._pageOwner === 'evaluatecare' || window._pageOwner === 'sharedservices') {
+                    // Collect checked specialty codes BEFORE the transfer —
+                    // capture state at click time so the filter-apply payload
+                    // is well-defined even if DOM mutates during the transfer.
+                    var ownerXferChecked = [];
+                    leftPanel.querySelectorAll('input[data-gui-action="filter-toggle"]:checked').forEach(function(cb) {
+                      var row = cb.closest('[data-spec-code]');
+                      if (row && row.style.display === 'none') return;
+                      ownerXferChecked.push(cb.getAttribute('data-gui-value'));
+                    });
+                    var ownerXferPrescriberCb = leftPanel.querySelector('input[data-gui-value="prescribers"]');
+                    var ownerXferPrescribersOnly = ownerXferPrescriberCb ? ownerXferPrescriberCb.checked : false;
+                    // Update lastAppliedCodes so subsequent same-state clicks
+                    // get the "No filter changes to apply" message (consistent
+                    // with Branch B's behavior).
+                    leftPanel.dataset.lastAppliedCodes = JSON.stringify(ownerXferChecked.slice().sort());
+
                     window._pageOwner = 'findcare';
                     // DEVOPS-BANNER-B007: banner reflects new owner's /health.
                     if (typeof window.refreshBanner === 'function') window.refreshBanner('findcare');
@@ -1250,8 +1387,23 @@
                         if (shSplash) shSplash.style.display = 'none';
                         // Restore chat iframe
                         chatFrame.style.display = '';
-                        // BUG-UX-022/023: RestoreState=false — reset FindCare to welcome, focus input
+                        // BUG-UX-022/023: RestoreState=false — reset FindCare to welcome, focus input.
+                        // Welcome briefly appears (satisfies REQ-B-023 welcome-words assertion),
+                        // then the immediately-following filter-apply transitions FindCare
+                        // back into the searching/results phase with the new code set.
                         chatFrame.contentWindow.postMessage({type: 'gui:reset'}, '*');
+                        // EPIC-006-F-001 (Apply Filter must re-query providers):
+                        // immediately follow the reset with filter-apply so the
+                        // iframe re-fetches providers using the user's new
+                        // specialty selection. Without this the iframe stays
+                        // on welcome and the user sees 0 providers.
+                        chatFrame.contentWindow.postMessage({
+                          type: 'gui:event',
+                          action: 'filter-apply',
+                          value: JSON.stringify(ownerXferChecked),
+                          prescribers_only: ownerXferPrescribersOnly,
+                          searchParams: leftPanel.dataset.searchParams
+                        }, '*');
                         // SEC-HTTPS-001-REQ-021/022: refresh BOTH panels.
                         // FC mints, SS verifies; left panel re-fetches FC /session.
                         window.refreshTokenPanels('findcare');
@@ -1467,12 +1619,16 @@
             rightPanel.style.justifyContent = 'flex-start';
             rightPanel.style.flexDirection = 'column';
             rightPanel.style.overflow = 'auto';
-            rightPanel.innerHTML = '<div style="padding:8px 10px;border-bottom:2px solid #d97706;background:#fffbeb;">'
+            // Write the provider list into #rightContent so it coexists
+            // with the security panel that refreshTokenPanels owns
+            // (#rightSecurity). See window.ensureRightPanelStructure().
+            window.ensureRightPanelStructure();
+            document.getElementById('rightContent').innerHTML =
+                '<div style="padding:8px 10px;border-bottom:2px solid #d97706;background:#fffbeb;">'
               + '<div style="font-size:11px;font-weight:700;color:#d97706;text-transform:uppercase;">EvaluateCare</div>'
               + '<div style="font-size:9px;color:#6b7280;margin-top:2px;">' + msg.providers.length + ' providers · ' + (msg.question || '') + '</div>'
               + '</div>'
-              + '<div style="overflow-y:auto;flex:1;">' + rows + '</div>'
-              + tokenHtml;
+              + '<div style="overflow-y:auto;flex:1;">' + rows + '</div>';
             // BUG-UX-020: Update left panel with identical session verification
             if (msg.session_token) {
               var sessionEl = document.getElementById('guiSessionCell') || document.getElementById('guiSessionId');
@@ -1483,24 +1639,17 @@
           }
         }
 
-        // SharedServices result — render in right panel (mirrors EvaluateCare pattern)
+        // SharedServices result — render in #rightContent so it coexists
+        // with the security panel in #rightSecurity owned by refreshTokenPanels.
         if (msg.type === 'gui:shared-result') {
-          var rightPanel = document.getElementById('rightPanel');
-          if (rightPanel) {
-            // EPIC-002-F-001-S-012-REQ-B-007: Use shared token display function
-            var tokenHtml = '';
-            if (msg.session_token) {
-              tokenHtml = buildTokenDisplayHtml(msg.session_token);
-            }
-            rightPanel.style.alignItems = 'stretch';
-            rightPanel.style.justifyContent = 'flex-start';
-            rightPanel.style.flexDirection = 'column';
-            rightPanel.style.overflow = 'auto';
-            rightPanel.innerHTML = '<div style="padding:8px 10px;border-bottom:2px solid #0b7a75;background:#f0fffe;">'
+          window.ensureRightPanelStructure();
+          var content = document.getElementById('rightContent');
+          if (content) {
+            content.innerHTML =
+                '<div style="padding:8px 10px;border-bottom:2px solid #0b7a75;background:#f0fffe;">'
               + '<div style="font-size:11px;font-weight:700;color:#0b7a75;text-transform:uppercase;">Shared Services</div>'
               + '<div style="font-size:9px;color:#6b7280;margin-top:2px;">Mutual authentication test</div>'
-              + '</div>'
-              + tokenHtml;
+              + '</div>';
           }
         }
 
@@ -1516,22 +1665,57 @@
           }
           if (sessionEl) {
             if (msg.session_token && typeof msg.session_token === 'object') {
-              // Full verified token — use identical display function
               sessionEl.innerHTML = window.buildTokenDisplayHtml(msg.session_token);
+            } else if (sessionEl.innerHTML.indexOf('YES ✓') !== -1) {
+              // Already in verified state (refreshTokenPanels painted it).
+              // A late iframe-side Pending message must not clobber it.
             } else {
-              // Initial raw token string (pre-verify) — build pending display
-              var token = msg.token || '';
-              var nonce = token.length >= 36 ? token.substring(2, 36) : token;
-              var guid = token.length >= 68 ? token.substring(36) : '';
-              sessionEl.innerHTML = '<div style="padding:8px 10px;border-top:2px solid #0b7a75;background:#f0fffe;margin-top:4px;">'
-                + '<div style="font-size:10px;font-weight:700;color:#0b7a75;text-transform:uppercase;">Session Verification</div>'
-                + '<div style="font-size:9px;color:#374151;margin-top:4px;word-break:break-all;">'
-                + '<b style="color:#d97706;">Nonce:</b> <span style="color:#d97706;">' + nonce + '</span></div>'
-                + '<div style="font-size:9px;color:#374151;margin-top:2px;word-break:break-all;">'
-                + '<b style="color:#0b7a75;">GUID:</b> <span style="color:#0b7a75;">' + guid + '</span></div>'
-                + '<div style="font-size:9px;color:#374151;margin-top:2px;">'
-                + '<b>Verified:</b> <span style="color:#6b7280;">Pending...</span></div>'
-                + '</div>';
+              var __renderPending = function() {
+                var token = msg.token || '';
+                var nonce = token.length >= 36 ? token.substring(2, 36) : token;
+                var guid = token.length >= 68 ? token.substring(36) : '';
+                var pstTime = '?';
+                if (token.length >= 36) {
+                  var c = token.substring(19, 36);
+                  try {
+                    var d = new Date(Date.UTC(
+                      parseInt(c.substring(4, 8), 10),
+                      parseInt(c.substring(0, 2), 10) - 1,
+                      parseInt(c.substring(2, 4), 10),
+                      parseInt(c.substring(8, 10), 10),
+                      parseInt(c.substring(10, 12), 10),
+                      parseInt(c.substring(12, 14), 10)
+                    ));
+                    if (!isNaN(d.getTime())) {
+                      pstTime = d.toLocaleString('en-US', {
+                        timeZone: 'America/Los_Angeles',
+                        year: 'numeric', month: '2-digit', day: '2-digit',
+                        hour: '2-digit', minute: '2-digit', second: '2-digit',
+                        hour12: false,
+                      });
+                    }
+                  } catch (e) { pstTime = '?'; }
+                }
+                var envLabel = window._envLabel || 'UNKNOWN';
+                sessionEl.innerHTML = '<div style="padding:8px 10px;border-top:2px solid #0b7a75;background:#f0fffe;margin-top:4px;">'
+                  + '<div style="font-size:10px;font-weight:700;color:#0b7a75;text-transform:uppercase;">Session Verification</div>'
+                  + '<div style="font-size:9px;color:#374151;margin-top:4px;word-break:break-all;">'
+                  + '<b style="color:#6366f1;">Signed token:</b> <span style="color:#6366f1;">Pending…</span></div>'
+                  + '<div style="font-size:9px;color:#374151;margin-top:2px;word-break:break-all;">'
+                  + '<b style="color:#d97706;">Nonce:</b> <span style="color:#d97706;">' + nonce + '</span></div>'
+                  + '<div style="font-size:9px;color:#374151;margin-top:2px;word-break:break-all;">'
+                  + '<b style="color:#0b7a75;">GUID:</b> <span style="color:#0b7a75;">' + guid + '</span></div>'
+                  + '<div style="font-size:9px;color:#374151;margin-top:2px;">'
+                  + '<b>Verified:</b> <span style="color:#6b7280;">Pending…</span></div>'
+                  + '<div style="font-size:9px;color:#374151;margin-top:2px;">'
+                  + '<b>Server, serving security token:</b> Pending…</div>'
+                  + '<div style="font-size:9px;color:#374151;margin-top:2px;">'
+                  + '<b>Env:</b> <span style="color:#7c3aed;font-weight:700;">' + envLabel + '</span></div>'
+                  + '<div style="font-size:9px;color:#374151;margin-top:2px;">'
+                  + '<b>Time:</b> PST <span style="color:#374151;">' + pstTime + '</span></div>'
+                  + '</div>';
+              };
+              __renderPending();
             }
           }
         }
